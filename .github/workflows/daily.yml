@@ -1,0 +1,34 @@
+name: 🌅 오늘의 기록 페이지 만들기
+
+on:
+  schedule:
+    - cron: "0 12 * * *" # 매일 12:00 UTC = LA 새벽 4시(겨울) / 5시(여름)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: journal
+  cancel-in-progress: false
+
+jobs:
+  new-day:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Los_Angeles
+    steps:
+      - uses: actions/checkout@v4
+      - name: 오늘 페이지 만들기
+        run: python3 scripts/journal.py today
+      - name: 증인 기록 · 대시보드 정리
+        run: python3 scripts/journal.py build
+      - name: 저장
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "🌅 $(date +%F) 오늘의 기록 페이지"
+          git pull --rebase
+          git push
