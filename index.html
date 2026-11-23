@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3오늘 — 전도자의 삶</title>
+<meta name="description" content="오늘의 말씀 · 오늘의 기도 · 오늘의 전도. 강단에서 선포된 말씀을 언약으로 붙잡고 하나님이 나의 삶에서 성취하시는 것을 매일 기록합니다.">
+<meta property="og:title" content="3오늘 — 전도자의 삶">
+<meta property="og:description" content="오늘의 말씀 · 오늘의 기도 · 오늘의 전도">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+:root{
+  --paper:hsl(40 38% 96%);
+  --card:hsl(40 60% 99.5%);
+  --ink:hsl(222 28% 15%);
+  --ink-2:hsl(222 12% 34%);
+  --muted:hsl(222 8% 52%);
+  --line:hsl(36 22% 86%);
+  --word:hsl(36 64% 40%);
+  --word-bg:hsl(40 70% 94%);
+  --prayer:hsl(210 46% 38%);
+  --prayer-bg:hsl(210 50% 95%);
+  --mission:hsl(12 58% 46%);
+  --mission-bg:hsl(14 70% 95%);
+  --serif:"Gowun Batang",serif;
+  --sans:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --shadow:0 1px 2px hsl(30 20% 40% / .06),0 8px 24px -12px hsl(30 25% 30% / .18);
+  --shadow-lg:0 2px 4px hsl(30 20% 40% / .06),0 22px 48px -20px hsl(30 25% 25% / .28);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  font-family:var(--sans);color:var(--ink);line-height:1.7;letter-spacing:-.01em;
+  word-break:keep-all;overflow-wrap:break-word;
+  background:
+    radial-gradient(1200px 520px at 50% -180px,hsl(40 80% 90%),transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .38 0 0 0 0 .28 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    var(--paper);
+  min-height:100vh;
+}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px}
+
+/* ── Hero ── */
+.hero{padding:68px 0 36px;text-align:center}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.24em;color:var(--word)}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(44px,9vw,68px);letter-spacing:-.02em;line-height:1.15;margin:14px 0 12px}
+.three{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.three span{font-size:14.5px;font-weight:600;padding:6px 14px;border-radius:999px}
+.three .w{color:var(--word);background:var(--word-bg)}
+.three .p{color:var(--prayer);background:var(--prayer-bg)}
+.three .m{color:var(--mission);background:var(--mission-bg)}
+.verse{font-family:var(--serif);color:var(--ink-2);font-size:16px;line-height:1.9;max-width:520px;margin:28px auto 0}
+.verse cite{display:block;font-style:normal;font-family:var(--sans);font-size:13px;color:var(--muted);margin-top:6px;letter-spacing:.04em}
+
+/* ── Stats ── */
+.stats{display:flex;justify-content:center;margin:34px auto 0;background:var(--card);border-radius:18px;box-shadow:var(--shadow);max-width:520px;overflow:hidden}
+.stat{flex:1;padding:18px 8px;text-align:center}
+.stat+.stat{border-left:1px solid var(--line)}
+.stat b{display:block;font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat small{font-size:12.5px;color:var(--muted)}
+
+/* ── Controls ── */
+.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0 18px}
+.tabs{display:inline-flex;background:hsl(36 24% 91%);padding:4px;border-radius:999px;gap:2px}
+.tab{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:13.5px;font-weight:600;padding:6px 15px;border-radius:999px;cursor:pointer;transition:all .2s}
+.tab[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 4px hsl(30 20% 30% / .12)}
+.months{display:flex;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:none;max-width:100%}
+.months::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);font:inherit;font-size:13.5px;padding:6px 14px;border-radius:999px;cursor:pointer;transition:all .2s}
+.chip:hover{background:var(--card)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+/* ── Daily Cards ── */
+.list{display:grid;gap:18px;padding-bottom:44px}
+.entry{background:var(--card);border-radius:22px;box-shadow:var(--shadow);transition:box-shadow .3s;animation:rise .55s both}
+.entry:hover{box-shadow:var(--shadow-lg)}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.head{display:flex;gap:22px;align-items:center;padding:24px 26px;cursor:pointer;width:100%;background:none;border:0;text-align:left;font:inherit;color:inherit}
+.date{flex:none;width:62px;text-align:center}
+.date .d{display:block;font-family:var(--serif);font-size:38px;font-weight:700;line-height:1}
+.date .s{display:block;font-size:12.5px;color:var(--muted);margin-top:6px;white-space:nowrap}
+.date.sun .s{color:var(--mission)}
+.cov{flex:1;min-width:0;border-left:1px solid var(--line);padding-left:22px}
+.cov q{font-family:var(--serif);font-size:clamp(17px,2.5vw,20px);line-height:1.6;quotes:"“" "”";display:block}
+.cov q::before{content:open-quote}.cov q::after{content:close-quote}
+.cov .ref{font-size:13px;color:var(--word);font-weight:600;margin-top:6px}
+.chev{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--muted);transition:transform .35s,background .2s}
+.head:hover .chev{background:var(--paper)}
+.entry.open .chev{transform:rotate(180deg)}
+
+.body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .42s cubic-bezier(.3,.7,.2,1)}
+.entry.open .body{grid-template-rows:1fr}
+.body>div{overflow:hidden}
+.inner{padding:4px 26px 28px}
+
+.today{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.t{border-radius:16px;padding:18px 18px 16px}
+.t h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.t h3 i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#fff}
+.t.w{background:var(--word-bg)} .t.w h3{color:var(--word)} .t.w h3 i{background:var(--word)}
+.t.p{background:var(--prayer-bg)} .t.p h3{color:var(--prayer)} .t.p h3 i{background:var(--prayer)}
+.t.m{background:var(--mission-bg)} .t.m h3{color:var(--mission)} .t.m h3 i{background:var(--mission)}
+.t .sub{font-size:13.5px;font-weight:600;color:var(--ink-2);margin-bottom:8px}
+.t ul{list-style:none;display:grid;gap:7px}
+.t li{font-size:14.5px;line-height:1.6;padding-left:13px;position:relative}
+.t li::before{content:"";position:absolute;left:0;top:.72em;width:4.5px;height:4.5px;border-radius:50%;background:currentColor;opacity:.38}
+
+.block{margin-top:22px}
+.block h4{font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.step{padding:15px 17px}
+.step+.step{border-left:1px solid var(--line)}
+.step .k{font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.step p{font-size:14.5px;line-height:1.6}
+.step.empty p{color:var(--muted)}
+.notes{display:grid;gap:8px}
+.note{display:flex;gap:12px;font-size:14.5px;line-height:1.6;padding:12px 16px;background:var(--paper);border-radius:12px}
+.note b{flex:none;font-size:12.5px;font-weight:700;padding-top:2px;min-width:56px}
+.note.ful b{color:var(--word)} .note.ans b{color:var(--prayer)} .note.evg b{color:var(--mission)}
+.forum{font-size:14.5px;line-height:1.7;padding:16px 18px;border-radius:14px;background:var(--paper)}
+.forum .name{font-weight:700;margin-bottom:6px}
+.forum ul{list-style:none;display:grid;gap:4px;color:var(--ink-2)}
+.forum li::before{content:"— ";color:var(--muted)}
+
+/* ── Witness Timeline View ── */
+.witness-wrap{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:26px 28px;margin-bottom:44px}
+.w-group+.w-group{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}
+.w-group h3{font-family:var(--serif);font-size:20px;margin-bottom:14px}
+.w-items{display:grid;gap:12px}
+.w-item{display:flex;gap:14px;align-items:baseline;font-size:15px;line-height:1.65}
+.w-tag{flex:none;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.w-tag.ful{color:var(--word);background:var(--word-bg)}
+.w-tag.ans{color:var(--prayer);background:var(--prayer-bg)}
+.w-tag.evg{color:var(--mission);background:var(--mission-bg)}
+.w-tag.night{color:var(--ink-2);background:var(--paper)}
+.w-date{flex:none;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;cursor:pointer;border:0;background:none;font-family:inherit}
+.w-date:hover{color:var(--ink);text-decoration:underline}
+
+/* ── Empty ── */
+.empty-state{text-align:center;padding:64px 24px;background:var(--card);border-radius:22px;box-shadow:var(--shadow);margin-bottom:44px}
+.empty-state .mark{font-family:var(--serif);font-size:44px;color:var(--word);line-height:1}
+.empty-state h2{font-family:var(--serif);font-size:22px;margin:14px 0 8px}
+.empty-state p{color:var(--muted);font-size:15px}
+
+footer{text-align:center;color:var(--muted);font-size:13px;padding:12px 0 56px}
+
+@media (max-width:680px){
+  .hero{padding:52px 0 28px}
+  .today,.flow{grid-template-columns:1fr}
+  .step+.step{border-left:0;border-top:1px solid var(--line)}
+  .head{gap:16px;padding:20px 18px}
+  .cov{padding-left:16px}
+  .inner{padding:0 18px 22px}
+  .date{width:48px}.date .d{font-size:32px}
+  .witness-wrap{padding:22px 18px}
+  .w-item{flex-wrap:wrap;gap:6px 10px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="hero">
+    <div class="eyebrow">전도자의 삶</div>
+    <h1>3오늘</h1>
+    <div class="three"><span class="w">오늘의 말씀</span><span class="p">오늘의 기도</span><span class="m">오늘의 전도</span></div>
+    <p class="verse">오직 성령이 너희에게 임하시면 너희가 권능을 받고<br>땅 끝까지 이르러 내 증인이 되리라<cite>사도행전 1:8</cite></p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="controls" id="controls" hidden>
+    <div class="tabs" role="tablist" aria-label="보기 선택">
+      <button class="tab" role="tab" data-view="daily" aria-selected="true">날짜별 기록</button>
+      <button class="tab" role="tab" data-view="witness" aria-selected="false">증인의 간증</button>
+    </div>
+    <nav class="months" id="months" aria-label="월별 보기"></nav>
+  </div>
+
+  <section class="list" id="list" aria-label="날짜별 기록"></section>
+  <section class="witness-wrap" id="witnessView" aria-label="증인의 간증" hidden></section>
+</main>
+<footer>매일 붙잡은 언약이 삶에서 성취되는 증인의 기록</footer>
+
+<script src="entries.js"></script>
+<script>
+(() => {
+  const WD = ["주일","월","화","수","목","금","토"];
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const toDate = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+  const key = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const arr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+
+  const entries = (window.ENTRIES || []).filter(e => e && e.date).sort((a,b) => b.date.localeCompare(a.date));
+  const dates = new Set(entries.map(e => e.date));
+  let streak = 0, cur = new Date(); cur.setHours(0,0,0,0);
+  if (!dates.has(key(cur))) cur.setDate(cur.getDate() - 1);
+  while (dates.has(key(cur))) { streak++; cur.setDate(cur.getDate() - 1); }
+
+  const evidenceCount = entries.reduce((n,e) => {
+    const wt = e.witness || {};
+    return n + arr(wt.answers).length + arr(wt.fulfilled).length + arr(wt.evangelism).length;
+  }, 0);
+
+  document.getElementById("stats").innerHTML =
+    [["기록한 날", entries.length], ["연속 기록", streak], ["응답 · 증거", evidenceCount]]
+      .map(([k,v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join("");
+
+  const list = document.getElementById("list");
+  const witnessView = document.getElementById("witnessView");
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty-state"><div class="mark">“</div><h2>첫 기록을 기다리고 있습니다</h2><p>오늘부터 날마다 붙잡은 언약이 이곳에 쌓입니다.</p></div>`;
+    return;
+  }
+
+  const li = xs => xs.map(x => `<li>${esc(x)}</li>`).join("");
+
+  function card(e, i) {
+    const d = toDate(e.date), w = e.word || {}, wt = e.witness || {}, f = e.forum;
+    const wordSub = [w.ref, w.title].filter(Boolean).map(esc).join(" · ");
+    const today = `
+      <div class="today">
+        <section class="t w"><h3><i>1</i>오늘의 말씀</h3>${wordSub ? `<div class="sub">${wordSub}</div>` : ""}<ul>${li(arr(w.points))}</ul></section>
+        <section class="t p"><h3><i>2</i>오늘의 기도</h3><ul>${li(arr(e.prayer))}</ul></section>
+        <section class="t m"><h3><i>3</i>오늘의 전도</h3><ul>${li(arr(e.evangelism))}</ul></section>
+      </div>`;
+    const steps = [["🌅 아침 · 언약", wt.morning], ["☀️ 낮 · 근본의 만남", wt.day], ["🌙 밤 · 최고의 작품", wt.night]];
+    const hasFlow = steps.some(s => s[1]);
+    const notes = [
+      ...arr(wt.fulfilled).map(x => ["ful", "말씀 성취", x]),
+      ...arr(wt.answers).map(x => ["ans", "기도 응답", x]),
+      ...arr(wt.evangelism).map(x => ["evg", "전도 역사", x]),
+    ];
+    const witness = (hasFlow || notes.length) ? `
+      <div class="block"><h4>오늘의 증거</h4>
+        ${hasFlow ? `<div class="flow">${steps.map(([k,v]) => `<div class="step${v ? "" : " empty"}"><div class="k">${k}</div><p>${v ? esc(v) : "—"}</p></div>`).join("")}</div>` : ""}
+        ${notes.length ? `<div class="notes" style="margin-top:${hasFlow ? 10 : 0}px">${notes.map(([c,k,v]) => `<div class="note ${c}"><b>${k}</b><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
+      </div>` : "";
+    const forum = f && (f.name || arr(f.points).length) ? `
+      <div class="block"><h4>포럼</h4><div class="forum">${f.name ? `<div class="name">${esc(f.name)}</div>` : ""}<ul>${li(arr(f.points))}</ul></div></div>` : "";
+    return `
+      <article class="entry${i === 0 ? " open" : ""}" id="d${e.date}" data-month="${e.date.slice(0,7)}" style="animation-delay:${Math.min(i,6)*55}ms">
+        <button class="head" aria-expanded="${i === 0}">
+          <div class="date${d.getDay() === 0 ? " sun" : ""}"><span class="d">${d.getDate()}</span><span class="s">${d.getMonth()+1}월 · ${WD[d.getDay()]}</span></div>
+          <div class="cov"><q>${esc(e.covenant || w.title || "오늘의 언약")}</q>${e.ref || w.ref ? `<div class="ref">${esc(e.ref || w.ref)}</div>` : ""}</div>
+          <span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+        </button>
+        <div class="body"><div><div class="inner">${today}${witness}${forum}</div></div></div>
+      </article>`;
+  }
+
+  list.innerHTML = entries.map(card).join("");
+  list.addEventListener("click", ev => {
+    const h = ev.target.closest(".head"); if (!h) return;
+    const a = h.parentElement, open = a.classList.toggle("open");
+    h.setAttribute("aria-expanded", open);
+  });
+
+  // 증인의 간증 타임라인
+  function renderWitness(monthFilter) {
+    const groups = new Map();
+    for (const e of entries) {
+      const ym = e.date.slice(0,7);
+      if (monthFilter !== "all" && ym !== monthFilter) continue;
+      const wt = e.witness || {};
+      const items = [
+        ...arr(wt.fulfilled).map(x => ["ful", "말씀 성취", x]),
+        ...arr(wt.answers).map(x => ["ans", "기도 응답", x]),
+        ...arr(wt.evangelism).map(x => ["evg", "전도 역사", x]),
+        ...(wt.night ? [["night", "최고의 작품", wt.night]] : []),
+      ];
+      if (!items.length) continue;
+      if (!groups.has(ym)) groups.set(ym, []);
+      for (const it of items) groups.get(ym).push({ date: e.date, item: it });
+    }
+    if (!groups.size) {
+      witnessView.innerHTML = `<p style="text-align:center;color:var(--muted);padding:24px 0">아직 모아진 응답 · 성취 · 전도 기록이 없습니다.</p>`;
+      return;
+    }
+    witnessView.innerHTML = [...groups.entries()].map(([ym, rows]) => `
+      <div class="w-group">
+        <h3>${+ym.slice(0,4)}년 ${+ym.slice(5)}월</h3>
+        <div class="w-items">${rows.map(({date, item:[cls, label, text]}) => {
+          const d = toDate(date);
+          return `<div class="w-item"><span class="w-tag ${cls}">${label}</span><button class="w-date" data-jump="${date}">${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})</button><span>${esc(text)}</span></div>`;
+        }).join("")}</div>
+      </div>`).join("");
+  }
+
+  // 컨트롤 (뷰 전환 + 월별 필터)
+  const controls = document.getElementById("controls");
+  controls.hidden = false;
+  let activeView = "daily", activeMonth = "all";
+
+  const months = [...new Set(entries.map(e => e.date.slice(0,7)))];
+  const nav = document.getElementById("months");
+  if (months.length > 1) {
+    nav.innerHTML = [["all","전체"], ...months.map(m => [m, `${+m.slice(0,4)}년 ${+m.slice(5)}월`])]
+      .map(([v,t], i) => `<button class="chip" data-m="${v}" aria-pressed="${i === 0}">${t}</button>`).join("");
+    nav.addEventListener("click", ev => {
+      const c = ev.target.closest(".chip"); if (!c) return;
+      activeMonth = c.dataset.m;
+      nav.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === c));
+      list.querySelectorAll(".entry").forEach(a => a.hidden = activeMonth !== "all" && a.dataset.month !== activeMonth);
+      renderWitness(activeMonth);
+    });
+  }
+
+  function setView(v) {
+    activeView = v;
+    controls.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.view === v));
+    list.hidden = v !== "daily";
+    witnessView.hidden = v !== "witness";
+    if (v === "witness") renderWitness(activeMonth);
+  }
+  controls.querySelector(".tabs").addEventListener("click", ev => {
+    const t = ev.target.closest(".tab"); if (t) setView(t.dataset.view);
+  });
+  witnessView.addEventListener("click", ev => {
+    const b = ev.target.closest("[data-jump]"); if (!b) return;
+    setView("daily");
+    const card = document.getElementById("d" + b.dataset.jump);
+    if (card) { card.hidden = false; card.classList.add("open"); card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  });
+
+  const target = location.hash && document.getElementById("d" + location.hash.slice(1));
+  if (target) { target.classList.add("open"); target.scrollIntoView(); }
+})();
+</script>
+</body>
+</html>
