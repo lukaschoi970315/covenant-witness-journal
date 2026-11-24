@@ -1,4 +1,4 @@
-// 3오늘 & 팀 포럼 자동 정리 파서
+// 3오늘 & 팀 포럼 문맥 정리 파서 (내장 한국어 다듬기 + 선택형 AI 정밀 정리)
 (() => {
   const MONTHS = {
     jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
@@ -29,11 +29,12 @@
       .trim();
   }
 
+  // 두서없는 구어체 군더더기·말버릇 제거
   function cleanSpoken(s) {
     let t = String(s || "").trim();
     t = t.replace(/—[^—]+—/g, " ");
-    t = t.replace(/(?:^|\s)(?:이제|막|약간|되게|그냥|좀|사실은|사실|뭐|있잖아(?:요)?|일단(?:은)?|그래가지고|이렇게)(?=\s|,|$)/g, " ");
-    t = t.replace(/^(?:어[,.]?\s*|음[,.]?\s*|저는\s+|제가\s+|근데\s+|그런데\s+|그래서\s+|그리고\s+|그러면서\s+|결국에는\s+)/g, "");
+    t = t.replace(/(?:^|\s)(?:이제|막|약간|되게|그냥|좀|사실은|사실|뭐|있잖아(?:요)?|일단(?:은)?|그래가지고|이렇게|그렇게|어떻게\s*잘|이런\s*식으로|그런\s*부분(?:을|에\s*대해서)?|그런\s*것을\s*통해서|그런\s*게)(?=\s|,|$)/g, " ");
+    t = t.replace(/^(?:어[,.]?\s*|음[,.]?\s*|저는\s+|제가\s+|근데\s+|그런데\s+|그래서\s+|그리고\s+|그러면서\s+|결국에는\s+|그래도\s+)/g, "");
     t = t.replace(/\s*이상입니다\.?\s*$/g, "");
     t = t.replace(/\s{2,}/g, " ").replace(/\s+([,.])/g, "$1").replace(/^[,\s]+|[,\s]+$/g, "").trim();
     return t;
@@ -47,11 +48,12 @@
     for (const s of sents) {
       const clean = cleanSpoken(s.replace(/[.]+$/, ""));
       if (!clean) continue;
-      if (clean.length > 105) {
-        const subs = clean.split(/(?<=는데|지만|거든|거든요|했고|됐고|이고|보고|으며|고서|보면|으면|면서),?\s+/);
+      // 정말 긴(165자 이상) 복문만 마침표 없는 접속 어미에서 나누되, 양쪽이 충분한 완성 문장일 때만 분리
+      if (clean.length > 165) {
+        const subs = clean.split(/(?<=는데|했고|됐고|이고|보고|으며)\.\s*|(?<=지만|거든요|했고|됐고|았어요|었어요),\s+/);
         for (const sub of subs) {
           const c = cleanSpoken(sub);
-          if (c.length >= 14) out.push(c);
+          if (c.length >= 24) out.push(c);
         }
       } else {
         out.push(clean);
@@ -60,23 +62,28 @@
     return out;
   }
 
+  // 구어체 문장을 깔끔하고 정돈된 문어체 한 줄로 다듬기
   function polishPoint(s) {
     let t = cleanSpoken(s);
     t = t.replace(/^(?:오늘\s+하루\s+|하루\s+|맨\s*첫\s*번째로\s+|그런데\s+|그래서\s+|그러면서\s+|결국에는\s+|하지만\s+|그래도\s+|오늘도?\s+)/g, "");
-    t = t.replace(/^(?:내\s+생각에\s+|생각을\s+해보면\s+|지금\s+와서\s+생각해보면\s+|지금\s+상태를\s+봤을\s+때\s+|그런\s+부분을\s+)/g, "");
+    t = t.replace(/^(?:내\s+생각에\s+|생각을\s+해보면\s+|지금\s+와서\s+생각해보면\s+|지금\s+상태를\s+봤을\s+때\s+|요즘\s+들어서\s+)/g, "");
+    t = t.replace(/,?\s*이\s*두\s*가지로\s*인도받았는데요$/g, "으로 인도받음");
     t = t.replace(/인도받았는데요$/g, "인도받음");
     t = t.replace(/말씀을\s+하셨거든$/g, "말씀하심");
     t = t.replace(/말씀을\s+하셨어$/g, "말씀하심");
-    t = t.replace(/라고\s+보고요?$/g, "라고 봄");
+    t = t.replace(/라고\s+보고요?$/g, "이라고 봄");
     t = t.replace(/되는\s+것\s+같고요?$/g, "됨");
     t = t.replace(/하게\s+됩니다$/g, "하게 됨");
     t = t.replace(/고민하게\s+됩니다$/g, "고민하게 됨");
     t = t.replace(/기도가\s+되어집니다$/g, "기도함");
     t = t.replace(/기도가\s+되어지는\s+하루였습니다$/g, "기도한 하루");
     t = t.replace(/기도하며\s+예수\s*그리스도의\s*이름으로\s*기도합니다$/g, "기도함");
-    t = t.replace(/되어지는\s+부분인데$/g, "되어야 할 부분");
+    t = t.replace(/되어지는\s+부분인데$/g, "되어야 할 부분임");
     t = t.replace(/누리고\s+있어야\s+된다는\s+것$/g, "누려야 함을 확인함");
-    t = t.replace(/되지\s+않을까라는\s*생각함$/g, "준비되길 기대함");
+    t = t.replace(/되지\s+않을까라는\s*생각(?:을\s*)?(?:했어|함)$/g, "준비되길 기대함");
+    t = t.replace(/지\s+않을까\s*생각(?:을\s*)?(?:했어|함)$/g, "기대함");
+    t = t.replace(/남겨보면$/g, "남겨보는 것이 중요함");
+    t = t.replace(/해야\s+한다$/g, "해야 함");
     t = t.replace(/상태인데$/g, "상태임");
     t = t.replace(/있고요$/g, "있음");
     t = t.replace(/되더라고요$/g, "됨");
@@ -87,36 +94,44 @@
     t = t.replace(/깨달았고$/g, "깨달음");
     t = t.replace(/바뀌겠다$/g, "바뀔 것을 확신함");
     t = t.replace(/것\s*같아요$/g, "것 같음");
-    t = t.replace(/남겨보면$/g, "남겨보는 것이 중요함");
+    t = t.replace(/것\s*같고$/g, "것 같음");
+    t = t.replace(/보여지려면\s+먼저\s+(.+)\s+세워야\s+함$/g, "보여지려면 먼저 $1 세워야 함을 붙잡음");
     t = t.replace(/거예요$|거든$|잖아$/g, "");
     t = t.replace(/\s{2,}/g, " ").replace(/^[,\s]+|[,\s]+$/g, "").trim();
-    if (t.length > 135) {
-      const words = t.slice(0, 132).split(/\s+/);
-      words.pop();
-      t = words.join(" ") + "…";
+    if (t.length > 155) {
+      const cut = t.slice(0, 152);
+      const sep = Math.max(cut.lastIndexOf(", "), cut.lastIndexOf(" "), 100);
+      t = cut.slice(0, sep).trim() + "…";
     }
     return t;
   }
 
   function summarizeSpeaker(text, maxPoints = 3) {
     const clauses = splitClauses(text);
-    if (!clauses.length) return { points: [], bestWord: "" };
+    if (!clauses.length) return { points: [], bestWord: "", evidence: { fulfilled: [], answers: [], evangelism: [] }, pulpit: [], field: [] };
 
     const WORD_KWS = ["말씀", "언약", "기도수첩", "강단", "메시지", "CVDIP", "망대", "절대여정", "신분", "권세", "왕", "선지자", "제사장", "서밋", "달란트", "전문성", "미션", "성취"];
     const STATE_KWS = ["상태", "깨닫", "치유", "각인", "고민", "두려", "의지", "벅차", "집중", "졸", "학업", "미래"];
     const ACTION_KWS = ["기도", "도전", "방향", "결단", "작품", "확인", "아침", "밤", "3오늘", "포럼", "기록", "살릴"];
 
+    const pulpit = [], field = [], fulfilled = [], answers = [];
+
     const scored = clauses.map((raw, idx) => {
       const p = polishPoint(raw);
-      if (p.length < 10 || /^(?:이상입니다|감사합니다|아멘)$/.test(p)) return null;
-      if (/^(?:그\s*부분에\s*대해서|일단\s*한번|어떻게\s*잘|우리도\s*예전에|한번\s*해볼게|잘\s*올려주면|사무엘은\s*하던|주호는\s*조금|이\s*시기에\s*미래에\s*대한\s*고민이)/.test(p)) return null;
+      if (p.length < 16 || /(?:주셨는데|있으면|하면서)$/.test(p) || /^(?:이상입니다|감사합니다|아멘)$/.test(p)) return null;
+      if (/^(?:그\s*부분에\s*대해서|일단\s*한번|어떻게\s*잘|우리도\s*예전에|한번\s*해볼게|잘\s*올려주면|사무엘은\s*하던|주호는\s*조금|이\s*시기에\s*미래에\s*대한\s*고민이|나도\s*막\s*글씨를)/.test(p)) return null;
+
+      if (/강단|목사님|중직자/.test(raw) && p.length <= 155) pulpit.push(p);
+      else if (/기도수첩|현장/.test(raw) && p.length <= 155) field.push(p);
+      if (/성취|깨달|알게\s*됨|확인함|확신함/.test(p)) fulfilled.push(p);
+      if (/더욱더\s*하나님을\s*의지/.test(raw)) answers.push(p);
 
       let wScore = 0, sScore = 0, aScore = 0;
       for (const k of WORD_KWS) if (raw.includes(k)) wScore += 3;
       for (const k of STATE_KWS) if (raw.includes(k)) sScore += 3;
       for (const k of ACTION_KWS) if (raw.includes(k)) aScore += 3;
 
-      const total = wScore + sScore + aScore + (p.length >= 18 && p.length <= 110 ? 3 : 0);
+      const total = wScore + sScore + aScore + (p.length >= 25 && p.length <= 140 ? 3 : 0);
       if (total <= 2) return null;
       const axis = wScore >= sScore && wScore >= aScore ? "word" : (sScore >= aScore ? "state" : "action");
       return { idx, p, total, wScore, axis };
@@ -124,7 +139,7 @@
 
     if (!scored.length) {
       const pts = clauses.slice(0, maxPoints).map(polishPoint).filter(Boolean);
-      return { points: pts, bestWord: pts[0] || "" };
+      return { points: pts, bestWord: pts[0] || "", evidence: { fulfilled: [], answers: [], evangelism: [] }, pulpit: [], field: [] };
     }
 
     const chosen = [];
@@ -153,6 +168,13 @@
     return {
       points: chosen.map(x => x.p),
       bestWord: bestWordObj?.p || chosen[0]?.p || "",
+      evidence: {
+        fulfilled: [...new Set(fulfilled)].slice(0, 1),
+        answers: [...new Set(answers)].slice(0, 1),
+        evangelism: [],
+      },
+      pulpit: [...new Set(pulpit)].slice(0, 1),
+      field: [...new Set(field)].slice(0, 1),
     };
   }
 
@@ -238,16 +260,24 @@
     const speakers = blocks
       .map(b => {
         const res = summarizeSpeaker(b.lines.join(" "), 3);
-        return { name: b.name, points: res.points, bestWord: res.bestWord, raw: b.lines.join("\n") };
+        return { name: b.name, ...res };
       })
       .filter(s => s.points.length);
 
     const leader = speakers[speakers.length - 1] || speakers[0];
     const flatPoints = speakers.flatMap(s => s.points.map(p => `[${s.name}] ${p}`));
 
+    // 포럼에서 확인된 강단/현장 말씀 & 삶 속 역사(성취/응답) 추출
+    const pulpit = speakers.flatMap(s => s.pulpit.map(p => `[${s.name}] ${p}`));
+    const field = speakers.flatMap(s => s.field.map(p => `[${s.name}] ${p}`));
+    const fulfilled = speakers.flatMap(s => s.evidence.fulfilled.map(p => `[${s.name}] ${p}`));
+    const answers = speakers.flatMap(s => s.evidence.answers.map(p => `[${s.name}] ${p}`));
+
     return {
       kind: "forum",
       date,
+      word: { ref: "", title: "", pulpit, field, points: [] },
+      witness: { morning: "", day: "", night: "", fulfilled, answers, evangelism: [] },
       forum: {
         name: participants.length ? `${forumName} (${participants.join(" · ")})` : forumName,
         points: flatPoints,
@@ -264,7 +294,7 @@
     const sections = { preamble: [], evangelism: [], word: [], prayer: [], witness: [], forum: [] };
     let mode = "preamble";
 
-    const SEC_RE = /^\s*(?:\d+[.)]\s*|[\[【])?\s*(오늘의\s*전도|오늘의\s*말씀|오늘의\s*기도|오늘의\s*증거|포럼|말씀\s*성취|기도\s*응답|전도\s*역사)\s*[\]】:]?\s*(.*)$/;
+    const SEC_RE = /^\s*(?:\d+[.)]\s*|[\[【])?\s*(오늘의\s*전도|오늘의\s*말씀|오늘의\s*기도|오늘의\s*증거|강단\s*말씀|현장\s*말씀|포럼|말씀\s*성취|기도\s*응답|전도\s*역사)\s*[\]】:]?\s*(.*)$/;
 
     for (let i = 0; i < lines.length; i++) {
       const rawLine = lines[i].trim();
@@ -280,7 +310,11 @@
         else if (label.includes("기도") && !label.includes("응답")) mode = "prayer";
         else if (label.includes("포럼")) mode = "forum";
         else mode = "witness";
-        if (sm[2].trim()) sections[mode].push(sm[2].trim());
+        if (sm[2].trim()) {
+          if (label === "강단말씀") sections.word.push("강단: " + sm[2].trim());
+          else if (label === "현장말씀") sections.word.push("현장: " + sm[2].trim());
+          else sections[mode].push(sm[2].trim());
+        }
         continue;
       }
       if (/^(?:이게\s*3오늘|3오늘\s*끝)/.test(rawLine)) continue;
@@ -288,12 +322,16 @@
     }
 
     const wordLines = sections.word.filter(Boolean);
-    let ref = "", wordTitle = "", wordPoints = [];
+    let ref = "", wordTitle = "", wordPoints = [], pulpit = [], field = [];
     for (const wl of wordLines) {
       const rm = wl.match(/^(?:본문|성경)\s*[:：]\s*(.+)$/);
       const tm = wl.match(/^(?:제목|말씀\s*제목)\s*[:：]\s*(.+)$/);
+      const pm = wl.match(/^(?:강단|강단\s*말씀)\s*[:：]\s*(.+)$/);
+      const fm = wl.match(/^(?:현장|현장\s*말씀|기도수첩)\s*[:：]\s*(.+)$/);
       if (rm) ref = rm[1].trim();
       else if (tm) wordTitle = tm[1].trim();
+      else if (pm) pulpit.push(pm[1].trim());
+      else if (fm) field.push(fm[1].trim());
       else wordPoints.push(wl);
     }
     if (!wordTitle && wordPoints.length === 1 && wordPoints[0].length <= 45) {
@@ -308,6 +346,19 @@
     const selfCov = selfLine ? selfLine.replace(/^나\s*[-–:]\s*/, "").replace(/[“”"']/g, "").trim() : "";
     const covenant = [selfCov, wordTitle || wordLines[0] || ""].filter((v, i, a) => v && a.indexOf(v) === i).join(" — ");
 
+    // 증거 섹션 파싱
+    const fulfilled = [], answers = [], evgHist = [];
+    let morning = "", day = "", night = "";
+    for (const wl of sections.witness) {
+      if (/^(?:성취|말씀\s*성취)\s*[:：]/.test(wl)) fulfilled.push(wl.replace(/^[^:：]+[:：]\s*/, ""));
+      else if (/^(?:응답|기도\s*응답)\s*[:：]/.test(wl)) answers.push(wl.replace(/^[^:：]+[:：]\s*/, ""));
+      else if (/^(?:전도\s*역사|전도\s*열매)\s*[:：]/.test(wl)) evgHist.push(wl.replace(/^[^:：]+[:：]\s*/, ""));
+      else if (/^(?:아침)\s*[:：]/.test(wl)) morning = wl.replace(/^[^:：]+[:：]\s*/, "");
+      else if (/^(?:낮|만남|근본의\s*만남)\s*[:：]/.test(wl)) day = wl.replace(/^[^:：]+[:：]\s*/, "");
+      else if (/^(?:밤|작품|최고의\s*작품)\s*[:：]/.test(wl)) night = wl.replace(/^[^:：]+[:：]\s*/, "");
+      else fulfilled.push(wl);
+    }
+
     let author = "";
     if (headerRest) {
       const am = headerRest.match(/^([가-힣A-Za-z]{2,10})\s/);
@@ -320,10 +371,10 @@
       author,
       covenant,
       ref,
-      word: { ref, title: wordTitle, points: wordPoints },
+      word: { ref, title: wordTitle, pulpit, field, points: wordPoints },
       prayer,
       evangelism,
-      witness: { morning: "", day: "", night: "", fulfilled: [], answers: [], evangelism: [] },
+      witness: { morning, day, night, fulfilled, answers, evangelism: evgHist },
       forum: sections.forum.length ? { name: "포럼", points: sections.forum } : null,
       raw: text.trim(),
     };
@@ -349,6 +400,10 @@
       const bFirst = partB.split("\n")[0] || "";
       const f = parseForum(partB, extractDate(partB) || date, stripDatePrefix(bFirst));
       t.forum = f.forum;
+      t.word.pulpit = [...t.word.pulpit, ...f.word.pulpit];
+      t.word.field = [...t.word.field, ...f.word.field];
+      t.witness.fulfilled = [...t.witness.fulfilled, ...f.witness.fulfilled];
+      t.witness.answers = [...t.witness.answers, ...f.witness.answers];
       t.kind = "both";
       t.raw = text;
       return t;
@@ -359,6 +414,138 @@
     }
 
     return parseThreeToday(text, date, headerRest);
+  }
+
+  // ── AI 문맥 정밀 정리 (Gemini / OpenAI 선택 연결 시 사용) ──
+  const AI_SYSTEM_PROMPT = `당신은 기독교 '3오늘(오늘의 말씀·기도·전도)'과 팀 포럼 기록을 돕는 정리 도우미입니다.
+사용자가 붙여넣은 글은 구어체 음성 녹취이거나 두서없이 급하게 적은 메모일 수 있습니다.
+문맥과 의도를 깊이 이해하되, 원문에 없는 사실·성경 구절·허구의 응답을 절대 지어내지 말고,
+거칠고 두서없는 말투("이제", "막", "약간", "되게", 비문 등)만 매끄럽고 담백한 한국어 문장으로 다듬어 아래 JSON 스키마로 정리하세요.
+
+중요 기준:
+1. 강단의 말씀(주일·수요·금요·목회자 말씀)과 현장의 말씀(기도수첩·오늘의 말씀)을 구분해 정리합니다.
+2. 포럼은 참석자별로 분리해, 각 사람이 붙잡은 말씀·오늘 깨달은 영적 상태·기도/결단을 핵심 2~3줄로 명확히 정리합니다.
+3. 글 속에서 하나님이 삶에 역사하신 흔적(말씀 성취, 깨달음으로 인한 영적 치유·상태 회복, 기도 응답, 전도 현장·만남의 문)이 확인되면 witness.fulfilled / witness.answers / witness.evangelism 에 명확히 뽑아 담습니다. (없으면 빈 배열 []로 둡니다.)
+4. kind 는 내용에 따라 "threeToday" | "forum" | "both" 중 하나로 지정합니다.
+
+반환 JSON 형식 (반드시 유효한 JSON 객체만 출력):
+{
+  "kind": "threeToday | forum | both",
+  "date": "YYYY-MM-DD",
+  "covenant": "오늘 붙잡은 핵심 언약 한 문장",
+  "ref": "명시된 성경 구절(없으면 빈 문자열)",
+  "word": {
+    "ref": "본문",
+    "title": "말씀 핵심 제목",
+    "pulpit": ["강단 말씀 요점 (없으면 [])"],
+    "field": ["현장/기도수첩 말씀 요점 (없으면 [])"],
+    "points": ["말씀 핵심 요약 (1~3줄)"]
+  },
+  "prayer": ["다듬어진 오늘의 기도 (최대 5줄)"],
+  "evangelism": ["오늘의 전도 대상/현장/일정 정리"],
+  "witness": {
+    "morning": "아침 언약(있을 때만)",
+    "day": "낮 근본의 만남(있을 때만)",
+    "night": "밤 최고의 작품(있을 때만)",
+    "fulfilled": ["삶에서 확인된 말씀 성취·영적 깨달음"],
+    "answers": ["확인된 기도 응답·하나님이 주신 힘"],
+    "evangelism": ["확인된 전도 역사·열린 문"]
+  },
+  "forum": {
+    "name": "포럼 제목 (없으면 null)",
+    "speakers": [
+      { "name": "이름", "points": ["다듬어진 핵심 요약 1", "핵심 요약 2"] }
+    ]
+  }
+}`;
+
+  async function parseWithAI(rawText, aiConfig) {
+    const text = String(rawText || "").trim();
+    if (!text) return null;
+    const provider = aiConfig?.provider || "gemini";
+    const apiKey = String(aiConfig?.apiKey || "").trim();
+    if (!apiKey) throw new Error("API 키가 설정되지 않았습니다.");
+
+    const userMsg = `오늘 기준 날짜는 ${todayLocal()} 입니다. 날짜가 글에 적혀 있으면 글의 날짜를 사용하세요.\n\n[원문]\n${text}`;
+    let parsedJson = null;
+
+    if (provider === "openai") {
+      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: AI_SYSTEM_PROMPT },
+            { role: "user", content: userMsg },
+          ],
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error?.message || `OpenAI 오류 (${resp.status})`);
+      parsedJson = JSON.parse(data.choices[0].message.content);
+    } else {
+      const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+      let lastErr = null;
+      for (const model of models) {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+            contents: [{ role: "user", parts: [{ text: userMsg }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+          }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          parsedJson = JSON.parse(data.candidates[0].content.parts[0].text);
+          break;
+        }
+        lastErr = new Error(data?.error?.message || `Gemini 오류 (${resp.status})`);
+        if (resp.status !== 404) throw lastErr;
+      }
+      if (!parsedJson) throw lastErr || new Error("AI 응답을 받지 못했습니다.");
+    }
+
+    const fallbackDate = extractDate(text);
+    const f = parsedJson.forum && (parsedJson.forum.name || parsedJson.forum.speakers?.length)
+      ? {
+          name: parsedJson.forum.name || "팀 포럼",
+          speakers: (parsedJson.forum.speakers || []).filter(s => s?.name && s?.points?.length),
+          points: (parsedJson.forum.speakers || []).flatMap(s => (s.points || []).map(p => `[${s.name}] ${p}`)),
+          raw: text,
+        }
+      : null;
+
+    return {
+      kind: parsedJson.kind || (f && !parsedJson.prayer?.length ? "forum" : "threeToday"),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(parsedJson.date || "") ? parsedJson.date : fallbackDate,
+      covenant: parsedJson.covenant || "",
+      ref: parsedJson.ref || "",
+      word: {
+        ref: parsedJson.word?.ref || "",
+        title: parsedJson.word?.title || "",
+        pulpit: parsedJson.word?.pulpit || [],
+        field: parsedJson.word?.field || [],
+        points: parsedJson.word?.points || [],
+      },
+      prayer: parsedJson.prayer || [],
+      evangelism: parsedJson.evangelism || [],
+      witness: {
+        morning: parsedJson.witness?.morning || "",
+        day: parsedJson.witness?.day || "",
+        night: parsedJson.witness?.night || "",
+        fulfilled: parsedJson.witness?.fulfilled || [],
+        answers: parsedJson.witness?.answers || [],
+        evangelism: parsedJson.witness?.evangelism || [],
+      },
+      forum: f,
+      covenantHint: parsedJson.covenant || "",
+      raw: text,
+    };
   }
 
   function formatForumTextarea(forum) {
@@ -404,5 +591,5 @@
     return { name: name || "포럼", points: pts, raw: existingRaw || undefined };
   }
 
-  window.JournalParser = { parseSubmission, formatForumTextarea, parseForumTextarea };
+  window.JournalParser = { parseSubmission, parseWithAI, formatForumTextarea, parseForumTextarea };
 })();

@@ -3,6 +3,14 @@
   const LOCAL_ENTRIES_KEY = "three_today_entries_v1";
   const LOCAL_PROFILE_KEY = "three_today_local_profile_v1";
   const LOCAL_CLOUD_KEY = "three_today_cloud_cfg_v1";
+  const LOCAL_AI_KEY = "three_today_ai_cfg_v1";
+
+  function loadAiConfig() {
+    try {
+      const c = JSON.parse(localStorage.getItem(LOCAL_AI_KEY) || "null");
+      return (c && c.apiKey) ? c : null;
+    } catch { return null; }
+  }
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -47,6 +55,8 @@
       word: {
         ref: String(w.ref || "").trim(),
         title: String(w.title || "").trim(),
+        pulpit: arr(w.pulpit),
+        field: arr(w.field),
         points: arr(w.points),
       },
       prayer: arr(raw.prayer),
@@ -132,6 +142,7 @@
     entries: [],
     homeView: "daily",
     homeMonth: "all",
+    witnessFilter: "all",
     page: "home",
     editingDate: null,
     admin: {
@@ -393,14 +404,15 @@
   // ── Home View (My 3오늘 & Witness) ──
   function renderHome() {
     const entries = state.entries;
-    const dates = new Set(entries.map(e => e.date));
-    let streak = 0, cur = new Date(); cur.setHours(0, 0, 0, 0);
-    if (!dates.has(dateKey(cur))) cur.setDate(cur.getDate() - 1);
-    while (dates.has(dateKey(cur))) { streak++; cur.setDate(cur.getDate() - 1); }
-
-    const evCount = entries.reduce((n, e) => n + arr(e.witness.answers).length + arr(e.witness.fulfilled).length + arr(e.witness.evangelism).length, 0);
-    $("stats").innerHTML = [["기록한 날", entries.length], ["연속 기록", streak], ["응답 · 증거", evCount]]
-      .map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join("");
+    const fulCount = entries.reduce((n, e) => n + arr(e.witness.fulfilled).length, 0);
+    const ansCount = entries.reduce((n, e) => n + arr(e.witness.answers).length, 0);
+    const evgCount = entries.reduce((n, e) => n + arr(e.witness.evangelism).length, 0);
+    $("stats").innerHTML = [
+      ["기록한 날", entries.length],
+      ["✨ 말씀 성취", fulCount],
+      ["🙏 기도 응답", ansCount],
+      ["🔥 전도 역사", evgCount],
+    ].map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join("");
 
     // 로컬->클라우드 마이그레이션 배너
     const localCount = state.sb ? loadLocalEntries().length : 0;
@@ -420,15 +432,20 @@
     }
 
     controls.hidden = false;
-    const li = xs => xs.length ? xs.map(x => `<li>${esc(x)}</li>`).join("") : `<li class="empty-txt" style="list-style:none;padding-left:0;color:var(--muted)">아직 기록 없음</li>`;
 
     list.innerHTML = entries.map((e, i) => {
       const d = toDate(e.date), w = e.word, wt = e.witness, f = e.forum;
       const wordSub = [w.ref, w.title].filter(Boolean).map(esc).join(" · ");
       const wordPts = arr(w.points).filter(x => !(arr(w.points).length === 1 && !w.ref && x === w.title));
+      const pulpitArr = arr(w.pulpit), fieldArr = arr(w.field);
+      const srcHtml = (pulpitArr.length || fieldArr.length) ? `<div class="w-src">
+        ${pulpitArr.map(x => `<div class="w-src-row"><b>강단</b>${esc(x)}</div>`).join("")}
+        ${fieldArr.map(x => `<div class="w-src-row"><b>현장</b>${esc(x)}</div>`).join("")}
+      </div>` : "";
+      const hasWord = wordSub || wordPts.length || srcHtml;
       const todayHtml = `
         <div class="today">
-          <section class="t w"><h3><i>1</i>오늘의 말씀</h3>${wordSub ? `<div class="sub">${wordSub}</div>` : ""}${wordPts.length ? `<ul>${wordPts.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : (!wordSub ? `<div class="empty-txt">아직 기록 없음</div>` : "")}</section>
+          <section class="t w"><h3><i>1</i>오늘의 말씀</h3>${wordSub ? `<div class="sub">${wordSub}</div>` : ""}${wordPts.length ? `<ul>${wordPts.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : (!hasWord ? `<div class="empty-txt">아직 기록 없음</div>` : "")}${srcHtml}</section>
           <section class="t p"><h3><i>2</i>오늘의 기도</h3><ul>${arr(e.prayer).length ? arr(e.prayer).map(x => `<li>${esc(x)}</li>`).join("") : `<div class="empty-txt">아직 기록 없음</div>`}</ul></section>
           <section class="t m"><h3><i>3</i>오늘의 전도</h3><ul>${arr(e.evangelism).length ? arr(e.evangelism).map(x => `<li>${esc(x)}</li>`).join("") : `<div class="empty-txt">아직 기록 없음</div>`}</ul></section>
         </div>`;
@@ -492,6 +509,7 @@
 
   function renderHomeWitness() {
     const groups = new Map();
+    const wf = state.witnessFilter || "all";
     for (const e of state.entries) {
       const ym = e.date.slice(0, 7);
       if (state.homeMonth !== "all" && ym !== state.homeMonth) continue;
@@ -501,17 +519,21 @@
         ...arr(wt.answers).map(x => ["ans", "기도 응답", x]),
         ...arr(wt.evangelism).map(x => ["evg", "전도 역사", x]),
         ...(wt.night ? [["night", "최고의 작품", wt.night]] : []),
-      ];
+      ].filter(([cls]) => wf === "all" || cls === wf);
       if (!items.length) continue;
       if (!groups.has(ym)) groups.set(ym, []);
       for (const it of items) groups.get(ym).push({ date: e.date, item: it });
     }
+    const filterBar = `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px">
+      ${[["all", "전체"], ["ful", "✨ 말씀 성취"], ["ans", "🙏 기도 응답"], ["evg", "🔥 전도 역사"], ["night", "🌙 최고의 작품"]]
+        .map(([v, t]) => `<button class="chip" data-wf="${v}" aria-pressed="${wf === v}">${t}</button>`).join("")}
+    </div>`;
     const wv = $("witnessView");
     if (!groups.size) {
-      wv.innerHTML = `<p style="text-align:center;color:var(--muted);padding:24px 0">아직 모아진 성취 · 응답 · 전도 기록이 없습니다.</p>`;
+      wv.innerHTML = filterBar + `<p style="text-align:center;color:var(--muted);padding:24px 0">아직 모아진 기록이 없습니다.</p>`;
       return;
     }
-    wv.innerHTML = [...groups.entries()].map(([ym, rows]) => `
+    wv.innerHTML = filterBar + [...groups.entries()].map(([ym, rows]) => `
       <div class="w-group">
         <h3>${+ym.slice(0, 4)}년 ${+ym.slice(5)}월</h3>
         <div class="w-items">${rows.map(({ date, item: [cls, label, text] }) => {
@@ -551,6 +573,8 @@
   });
 
   $("witnessView").addEventListener("click", ev => {
+    const wf = ev.target.closest("[data-wf]");
+    if (wf) { state.witnessFilter = wf.dataset.wf; renderHomeWitness(); return; }
     const b = ev.target.closest("[data-jump]");
     if (!b) return;
     state.homeView = "daily";
@@ -592,6 +616,13 @@
   // ── Editor Modal ──
   let editorForumRaw = "";
 
+  function updateAiPill() {
+    const aiCfg = loadAiConfig();
+    const pill = $("editorAiPill");
+    if (!pill) return;
+    pill.textContent = aiCfg?.apiKey ? `✨ AI 문맥 정리 (${aiCfg.provider === "openai" ? "OpenAI" : "Gemini"})` : "⚡ 기본 정리 · AI 연결";
+  }
+
   function setEditorMode(mode) {
     const isPaste = mode === "paste";
     $("pastePane").hidden = !isPaste;
@@ -609,6 +640,8 @@
     $("fCovenant").value = data?.covenant || "";
     $("fWordRef").value = data?.word?.ref || "";
     $("fWordTitle").value = data?.word?.title || "";
+    $("fWordPulpit").value = arrToLines(data?.word?.pulpit);
+    $("fWordField").value = arrToLines(data?.word?.field);
     $("fWordPoints").value = arrToLines(data?.word?.points);
     $("fPrayer").value = arrToLines(data?.prayer);
     $("fEvg").value = arrToLines(data?.evangelism);
@@ -630,17 +663,35 @@
     fillFieldsFromEntry(state.entries.find(x => x.date === date) || null, date);
   }
 
+  const uniq = xs => [...new Set(arr(xs))];
+
   function mergeParsedWithExisting(parsed, isPrivate) {
     const existing = state.entries.find(x => x.date === parsed.date);
+    const mergedWord = {
+      ref: parsed.word?.ref || existing?.word?.ref || "",
+      title: parsed.word?.title || existing?.word?.title || "",
+      pulpit: uniq([...(existing?.word?.pulpit || []), ...(parsed.word?.pulpit || [])]),
+      field: uniq([...(existing?.word?.field || []), ...(parsed.word?.field || [])]),
+      points: (parsed.word?.points?.length ? parsed.word.points : existing?.word?.points) || [],
+    };
+    const mergedWitness = {
+      morning: parsed.witness?.morning || existing?.witness?.morning || "",
+      day: parsed.witness?.day || existing?.witness?.day || "",
+      night: parsed.witness?.night || existing?.witness?.night || "",
+      fulfilled: uniq([...(existing?.witness?.fulfilled || []), ...(parsed.witness?.fulfilled || [])]),
+      answers: uniq([...(existing?.witness?.answers || []), ...(parsed.witness?.answers || [])]),
+      evangelism: uniq([...(existing?.witness?.evangelism || []), ...(parsed.witness?.evangelism || [])]),
+    };
+
     if (parsed.kind === "forum") {
       return {
         date: parsed.date,
         covenant: existing?.covenant || parsed.covenantHint || "",
-        ref: existing?.ref || "",
-        word: existing?.word || { ref: "", title: "", points: [] },
+        ref: existing?.ref || parsed.ref || "",
+        word: mergedWord,
         prayer: existing?.prayer || [],
         evangelism: existing?.evangelism || [],
-        witness: existing?.witness || { morning: "", day: "", night: "", fulfilled: [], answers: [], evangelism: [] },
+        witness: mergedWitness,
         forum: parsed.forum,
         share_with_admin: existing ? existing.share_with_admin && !isPrivate : !isPrivate,
       };
@@ -649,23 +700,38 @@
       date: parsed.date,
       covenant: parsed.covenant || existing?.covenant || "",
       ref: parsed.ref || existing?.ref || "",
-      word: (parsed.word?.points?.length || parsed.word?.title) ? parsed.word : (existing?.word || { ref: "", title: "", points: [] }),
+      word: mergedWord,
       prayer: parsed.prayer?.length ? parsed.prayer : (existing?.prayer || []),
       evangelism: parsed.evangelism?.length ? parsed.evangelism : (existing?.evangelism || []),
-      witness: existing?.witness || parsed.witness,
+      witness: mergedWitness,
       forum: parsed.forum || existing?.forum || null,
       share_with_admin: existing ? existing.share_with_admin && !isPrivate : !isPrivate,
     };
+  }
+
+  async function runSmartParse(txt) {
+    const aiCfg = loadAiConfig();
+    if (aiCfg?.apiKey && window.JournalParser?.parseWithAI) {
+      try {
+        return { parsed: await window.JournalParser.parseWithAI(txt, aiCfg), usedAi: true };
+      } catch (e) {
+        toast(`AI 연결 오류로 기본 정리로 진행합니다 (${e.message})`);
+      }
+    }
+    return { parsed: window.JournalParser.parseSubmission(txt), usedAi: false };
   }
 
   function openEditor(date = todayKey(), mode = "paste") {
     $("rawPasteInput").value = "";
     $("pastePrivate").checked = false;
     $("pasteDetectBadge").textContent = "내용을 붙여넣으면 자동으로 인식합니다";
+    updateAiPill();
     fillEditorForDate(date);
     setEditorMode(mode);
     $("editorModal").hidden = false;
   }
+
+  $("editorAiPill").onclick = () => { $("editorModal").hidden = true; openSettings(); };
 
   $("editorModeTabs").addEventListener("click", ev => {
     const t = ev.target.closest(".tab");
@@ -690,24 +756,31 @@
     }
   });
 
-  $("parseToFieldsBtn").onclick = () => {
+  $("parseToFieldsBtn").onclick = async () => {
     const txt = $("rawPasteInput").value.trim();
     if (!txt) { toast("붙여넣을 내용을 먼저 입력해 주세요."); return; }
-    const parsed = window.JournalParser.parseSubmission(txt);
-    const merged = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
-    fillFieldsFromEntry(merged, merged.date);
-    setEditorMode("fields");
-    toast(`${merged.date} 기록을 항목별로 정리했습니다. 확인 후 저장해 주세요.`);
+    const btn = $("parseToFieldsBtn"), old = btn.textContent;
+    btn.disabled = true; btn.textContent = "정리 중…";
+    try {
+      const { parsed, usedAi } = await runSmartParse(txt);
+      const merged = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
+      fillFieldsFromEntry(merged, merged.date);
+      setEditorMode("fields");
+      toast(`${merged.date} 기록을 ${usedAi ? "AI로 " : ""}정리했습니다. 확인 후 저장해 주세요.`);
+    } finally {
+      btn.disabled = false; btn.textContent = old;
+    }
   };
 
   $("parseAndSaveBtn").onclick = async () => {
     const txt = $("rawPasteInput").value.trim();
     if (!txt) { toast("붙여넣을 내용을 먼저 입력해 주세요."); return; }
-    const parsed = window.JournalParser.parseSubmission(txt);
-    const hadExisting = state.entries.some(x => x.date === parsed.date);
-    const entry = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
-    $("parseAndSaveBtn").disabled = true;
+    const btn = $("parseAndSaveBtn"), old = btn.textContent;
+    btn.disabled = true; btn.textContent = "정리 및 저장 중…";
     try {
+      const { parsed } = await runSmartParse(txt);
+      const hadExisting = state.entries.some(x => x.date === parsed.date);
+      const entry = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
       await upsertEntry(entry);
       $("editorModal").hidden = true;
       state.page = "home";
@@ -717,7 +790,7 @@
     } catch (e) {
       toast("저장 실패: " + e.message);
     } finally {
-      $("parseAndSaveBtn").disabled = false;
+      btn.disabled = false; btn.textContent = old;
     }
   };
 
@@ -741,6 +814,8 @@
       word: {
         ref: $("fWordRef").value.trim(),
         title: $("fWordTitle").value.trim(),
+        pulpit: linesToArr($("fWordPulpit").value),
+        field: linesToArr($("fWordField").value),
         points: linesToArr($("fWordPoints").value),
       },
       prayer: linesToArr($("fPrayer").value),
@@ -988,7 +1063,7 @@
         </div>
         ${e.covenant ? `<div class="report-cov">“${esc(e.covenant)}” ${e.ref ? `<span style="font-size:13px;color:var(--word);font-family:var(--sans);font-weight:600">${esc(e.ref)}</span>` : ""}</div>` : ""}
         <div class="report-cols">
-          <div class="report-col w"><b>오늘의 말씀${e.word.title ? ` · ${esc(e.word.title)}` : ""}</b>${arr(e.word.points).map(x => `<div>• ${esc(x)}</div>`).join("") || "<span style='color:var(--muted)'>—</span>"}</div>
+          <div class="report-col w"><b>오늘의 말씀${e.word.title ? ` · ${esc(e.word.title)}` : ""}</b>${arr(e.word.pulpit).map(x => `<div>⛪ ${esc(x)}</div>`).join("")}${arr(e.word.field).map(x => `<div>🌿 ${esc(x)}</div>`).join("")}${arr(e.word.points).map(x => `<div>• ${esc(x)}</div>`).join("") || (!arr(e.word.pulpit).length && !arr(e.word.field).length ? "<span style='color:var(--muted)'>—</span>" : "")}</div>
           <div class="report-col p"><b>오늘의 기도</b>${arr(e.prayer).map(x => `<div>• ${esc(x)}</div>`).join("") || "<span style='color:var(--muted)'>—</span>"}</div>
           <div class="report-col m"><b>오늘의 전도</b>${arr(e.evangelism).map(x => `<div>• ${esc(x)}</div>`).join("") || "<span style='color:var(--muted)'>—</span>"}</div>
         </div>
@@ -1180,11 +1255,12 @@
     });
   }
 
-  // ── Settings / Backup / Cloud Setup Modal ──
+  // ── Settings / Backup / AI / Cloud Setup Modal ──
   function openSettings() {
     const isCloud = !!state.sb;
     const p = state.profile || loadLocalProfile();
     const cfg = state.cloud || {};
+    const aiCfg = loadAiConfig();
     $("settingsBody").innerHTML = `
       <div class="sec-box n">
         <h4>내 프로필</h4>
@@ -1193,6 +1269,27 @@
           <div class="field"><label for="setGroup">팀 / 목장</label><input id="setGroup" value="${esc(p.group_name || "")}" placeholder="예: 1팀"></div>
         </div>
         <button class="btn-primary" id="saveProfBtn" type="button">이름 저장</button>
+      </div>
+
+      <div class="sec-box w">
+        <h4>✨ AI 문맥 다듬기 연결 (선택)</h4>
+        <p style="font-size:13px;color:var(--ink-2);margin-bottom:10px">
+          두서없는 구어체 녹취나 메모를 문맥에 맞게 유려하게 다듬고, <b>강단·현장 말씀</b>과 <b>성취·응답·전도 역사</b>를 정확히 뽑아 줍니다. (키는 이 브라우저에만 보관됩니다)
+        </p>
+        <div class="grid-2">
+          <div class="field"><label for="aiProviderSel">AI 종류</label>
+            <select id="aiProviderSel">
+              <option value="gemini"${aiCfg?.provider !== "openai" ? " selected" : ""}>Google Gemini (무료 API 추천)</option>
+              <option value="openai"${aiCfg?.provider === "openai" ? " selected" : ""}>OpenAI (GPT-4o mini)</option>
+            </select>
+          </div>
+          <div class="field"><label for="aiKeyIn">API 키</label><input id="aiKeyIn" type="password" value="${esc(aiCfg?.apiKey || "")}" placeholder="키를 입력하면 AI 정리 사용"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-primary" id="saveAiBtn" type="button">저장 · 연결</button>
+          ${aiCfg?.apiKey ? `<button class="btn-secondary" id="clearAiBtn" type="button">연결 해제</button>` : ""}
+          <span style="font-size:12px;color:var(--muted)">미설정 시 내장 자동 정리기로 동작합니다</span>
+        </div>
       </div>
 
       <div class="sec-box n">
@@ -1204,7 +1301,7 @@
         </div>
       </div>
 
-      <div class="sec-box w">
+      <div class="sec-box n">
         <h4>20명 배포용 클라우드 DB (Supabase)</h4>
         <p style="font-size:13px;color:var(--ink-2);margin-bottom:10px">
           상태: <b>${isCloud ? `연결됨 (${cfg.source === "file" ? "전체 배포용 config.js" : "이 브라우저 테스트 연결"})` : "미연결 — 개인 기기 모드"}</b>
@@ -1240,6 +1337,25 @@
       renderAll();
       toast("프로필이 저장되었습니다.");
     };
+
+    $("saveAiBtn").onclick = () => {
+      const provider = $("aiProviderSel").value;
+      const apiKey = $("aiKeyIn").value.trim();
+      if (!apiKey) { toast("API 키를 입력해 주세요."); return; }
+      localStorage.setItem(LOCAL_AI_KEY, JSON.stringify({ provider, apiKey }));
+      updateAiPill();
+      openSettings();
+      toast("AI 문맥 다듬기가 연결되었습니다.");
+    };
+    const clearAiBtn = $("clearAiBtn");
+    if (clearAiBtn) {
+      clearAiBtn.onclick = () => {
+        localStorage.removeItem(LOCAL_AI_KEY);
+        updateAiPill();
+        openSettings();
+        toast("기본 자동 정리 모드로 전환했습니다.");
+      };
+    }
 
     $("exportJsonBtn").onclick = () => {
       const blob = new Blob([JSON.stringify(state.entries, null, 2)], { type: "application/json" });
