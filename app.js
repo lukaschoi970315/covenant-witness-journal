@@ -33,6 +33,11 @@
     const f = raw.forum && typeof raw.forum === "object" ? raw.forum : null;
     const fName = f ? String(f.name || "").trim() : "";
     const fPts = f ? arr(f.points) : [];
+    const fSpeakers = (f && Array.isArray(f.speakers))
+      ? f.speakers.map(s => ({ name: String(s.name || "").trim(), points: arr(s.points) })).filter(s => s.name && s.points.length)
+      : [];
+    const fRaw = f && f.raw ? String(f.raw).trim() : "";
+    const hasForum = fName || fPts.length || fSpeakers.length;
     return {
       id: raw.id || null,
       user_id: raw.user_id || fallbackUserId,
@@ -54,9 +59,27 @@
         answers: arr(wt.answers),
         evangelism: arr(wt.evangelism),
       },
-      forum: (fName || fPts.length) ? { name: fName, points: fPts } : null,
+      forum: hasForum ? {
+        name: fName,
+        points: fPts,
+        ...(fSpeakers.length ? { speakers: fSpeakers } : {}),
+        ...(fRaw ? { raw: fRaw } : {}),
+      } : null,
       share_with_admin: raw.share_with_admin !== false,
     };
+  }
+
+  function renderForumBox(f, topMargin = false) {
+    if (!f) return "";
+    const speakersHtml = (Array.isArray(f.speakers) && f.speakers.length)
+      ? `<div class="forum-speakers">${f.speakers.map(s => `
+          <div class="speaker-block">
+            <div class="speaker-name">${esc(s.name)}</div>
+            <ul>${arr(s.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+          </div>`).join("")}</div>`
+      : `<ul>${arr(f.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    const rawHtml = f.raw ? `<details class="raw-toggle"><summary>원문 보기</summary><pre>${esc(f.raw)}</pre></details>` : "";
+    return `<div class="forum"${topMargin ? ' style="margin-top:10px"' : ""}>${f.name ? `<div class="name">🗣️ ${esc(f.name)}</div>` : ""}${speakersHtml}${rawHtml}</div>`;
   }
 
   function getCloudConfig() {
@@ -402,9 +425,10 @@
     list.innerHTML = entries.map((e, i) => {
       const d = toDate(e.date), w = e.word, wt = e.witness, f = e.forum;
       const wordSub = [w.ref, w.title].filter(Boolean).map(esc).join(" · ");
+      const wordPts = arr(w.points).filter(x => !(arr(w.points).length === 1 && !w.ref && x === w.title));
       const todayHtml = `
         <div class="today">
-          <section class="t w"><h3><i>1</i>오늘의 말씀</h3>${wordSub ? `<div class="sub">${wordSub}</div>` : ""}<ul>${arr(w.points).length ? arr(w.points).map(x => `<li>${esc(x)}</li>`).join("") : `<div class="empty-txt">아직 기록 없음</div>`}</ul></section>
+          <section class="t w"><h3><i>1</i>오늘의 말씀</h3>${wordSub ? `<div class="sub">${wordSub}</div>` : ""}${wordPts.length ? `<ul>${wordPts.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : (!wordSub ? `<div class="empty-txt">아직 기록 없음</div>` : "")}</section>
           <section class="t p"><h3><i>2</i>오늘의 기도</h3><ul>${arr(e.prayer).length ? arr(e.prayer).map(x => `<li>${esc(x)}</li>`).join("") : `<div class="empty-txt">아직 기록 없음</div>`}</ul></section>
           <section class="t m"><h3><i>3</i>오늘의 전도</h3><ul>${arr(e.evangelism).length ? arr(e.evangelism).map(x => `<li>${esc(x)}</li>`).join("") : `<div class="empty-txt">아직 기록 없음</div>`}</ul></section>
         </div>`;
@@ -420,7 +444,7 @@
           ${hasFlow ? `<div class="flow">${steps.map(([k, v]) => `<div class="step${v ? "" : " empty"}"><div class="k">${k}</div><p>${v ? esc(v) : "—"}</p></div>`).join("")}</div>` : ""}
           ${notes.length ? `<div class="notes" style="margin-top:${hasFlow ? 10 : 0}px">${notes.map(([c, k, v]) => `<div class="note ${c}"><b>${k}</b><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
         </div>` : "";
-      const forumHtml = f ? `<div class="block"><h4>포럼</h4><div class="forum">${f.name ? `<div class="name">${esc(f.name)}</div>` : ""}<ul>${arr(f.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>` : "";
+      const forumHtml = f ? `<div class="block"><h4>포럼</h4>${renderForumBox(f, false)}</div>` : "";
       const privTag = e.share_with_admin === false ? `<span class="priv-tag">🔒 나만 보기</span>` : "";
 
       return `
@@ -499,7 +523,7 @@
 
   $("list").addEventListener("click", async ev => {
     const editBtn = ev.target.closest("[data-edit]");
-    if (editBtn) { openEditor(editBtn.dataset.edit); return; }
+    if (editBtn) { openEditor(editBtn.dataset.edit, "fields"); return; }
     const delBtn = ev.target.closest("[data-del]");
     if (delBtn) {
       const d = delBtn.dataset.del;
@@ -566,34 +590,136 @@
   };
 
   // ── Editor Modal ──
-  function fillEditorForDate(date) {
+  let editorForumRaw = "";
+
+  function setEditorMode(mode) {
+    const isPaste = mode === "paste";
+    $("pastePane").hidden = !isPaste;
+    $("editorForm").hidden = isPaste;
+    $("editorModeTabs").querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.edMode === mode));
+  }
+
+  function fillFieldsFromEntry(data, date) {
     const existing = state.entries.find(x => x.date === date);
     state.editingDate = existing ? date : null;
     $("editorTitle").textContent = existing ? `${date} 기록 수정 · 이어쓰기` : "오늘의 3오늘 기록";
     $("editorDelBtn").hidden = !existing;
     $("fDate").value = date;
-    $("fRef").value = existing?.ref || "";
-    $("fCovenant").value = existing?.covenant || "";
-    $("fWordRef").value = existing?.word.ref || "";
-    $("fWordTitle").value = existing?.word.title || "";
-    $("fWordPoints").value = arrToLines(existing?.word.points);
-    $("fPrayer").value = arrToLines(existing?.prayer);
-    $("fEvg").value = arrToLines(existing?.evangelism);
-    $("fMorning").value = existing?.witness.morning || "";
-    $("fDay").value = existing?.witness.day || "";
-    $("fNight").value = existing?.witness.night || "";
-    $("fFulfilled").value = arrToLines(existing?.witness.fulfilled);
-    $("fAnswers").value = arrToLines(existing?.witness.answers);
-    $("fWitnessEvg").value = arrToLines(existing?.witness.evangelism);
-    $("fForumName").value = existing?.forum?.name || "";
-    $("fForumPoints").value = arrToLines(existing?.forum?.points);
-    $("fPrivate").checked = existing ? existing.share_with_admin === false : false;
+    $("fRef").value = data?.ref || "";
+    $("fCovenant").value = data?.covenant || "";
+    $("fWordRef").value = data?.word?.ref || "";
+    $("fWordTitle").value = data?.word?.title || "";
+    $("fWordPoints").value = arrToLines(data?.word?.points);
+    $("fPrayer").value = arrToLines(data?.prayer);
+    $("fEvg").value = arrToLines(data?.evangelism);
+    $("fMorning").value = data?.witness?.morning || "";
+    $("fDay").value = data?.witness?.day || "";
+    $("fNight").value = data?.witness?.night || "";
+    $("fFulfilled").value = arrToLines(data?.witness?.fulfilled);
+    $("fAnswers").value = arrToLines(data?.witness?.answers);
+    $("fWitnessEvg").value = arrToLines(data?.witness?.evangelism);
+    $("fForumName").value = data?.forum?.name || "";
+    $("fForumPoints").value = window.JournalParser
+      ? window.JournalParser.formatForumTextarea(data?.forum)
+      : arrToLines(data?.forum?.points);
+    editorForumRaw = data?.forum?.raw || "";
+    $("fPrivate").checked = data ? data.share_with_admin === false : false;
   }
 
-  function openEditor(date = todayKey()) {
+  function fillEditorForDate(date) {
+    fillFieldsFromEntry(state.entries.find(x => x.date === date) || null, date);
+  }
+
+  function mergeParsedWithExisting(parsed, isPrivate) {
+    const existing = state.entries.find(x => x.date === parsed.date);
+    if (parsed.kind === "forum") {
+      return {
+        date: parsed.date,
+        covenant: existing?.covenant || parsed.covenantHint || "",
+        ref: existing?.ref || "",
+        word: existing?.word || { ref: "", title: "", points: [] },
+        prayer: existing?.prayer || [],
+        evangelism: existing?.evangelism || [],
+        witness: existing?.witness || { morning: "", day: "", night: "", fulfilled: [], answers: [], evangelism: [] },
+        forum: parsed.forum,
+        share_with_admin: existing ? existing.share_with_admin && !isPrivate : !isPrivate,
+      };
+    }
+    return {
+      date: parsed.date,
+      covenant: parsed.covenant || existing?.covenant || "",
+      ref: parsed.ref || existing?.ref || "",
+      word: (parsed.word?.points?.length || parsed.word?.title) ? parsed.word : (existing?.word || { ref: "", title: "", points: [] }),
+      prayer: parsed.prayer?.length ? parsed.prayer : (existing?.prayer || []),
+      evangelism: parsed.evangelism?.length ? parsed.evangelism : (existing?.evangelism || []),
+      witness: existing?.witness || parsed.witness,
+      forum: parsed.forum || existing?.forum || null,
+      share_with_admin: existing ? existing.share_with_admin && !isPrivate : !isPrivate,
+    };
+  }
+
+  function openEditor(date = todayKey(), mode = "paste") {
+    $("rawPasteInput").value = "";
+    $("pastePrivate").checked = false;
+    $("pasteDetectBadge").textContent = "내용을 붙여넣으면 자동으로 인식합니다";
     fillEditorForDate(date);
+    setEditorMode(mode);
     $("editorModal").hidden = false;
   }
+
+  $("editorModeTabs").addEventListener("click", ev => {
+    const t = ev.target.closest(".tab");
+    if (t) setEditorMode(t.dataset.edMode);
+  });
+
+  $("rawPasteInput").addEventListener("input", () => {
+    const txt = $("rawPasteInput").value.trim();
+    if (!txt || !window.JournalParser) {
+      $("pasteDetectBadge").textContent = "내용을 붙여넣으면 자동으로 인식합니다";
+      return;
+    }
+    const p = window.JournalParser.parseSubmission(txt);
+    if (!p) return;
+    if (p.kind === "forum") {
+      const cnt = p.forum?.speakers?.length || 0;
+      $("pasteDetectBadge").textContent = `인식됨: ${p.date} · 팀 포럼 (${cnt}명 요약)`;
+    } else if (p.kind === "both") {
+      $("pasteDetectBadge").textContent = `인식됨: ${p.date} · 3오늘 + 팀 포럼`;
+    } else {
+      $("pasteDetectBadge").textContent = `인식됨: ${p.date} · 3오늘${p.author ? ` (${p.author})` : ""}`;
+    }
+  });
+
+  $("parseToFieldsBtn").onclick = () => {
+    const txt = $("rawPasteInput").value.trim();
+    if (!txt) { toast("붙여넣을 내용을 먼저 입력해 주세요."); return; }
+    const parsed = window.JournalParser.parseSubmission(txt);
+    const merged = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
+    fillFieldsFromEntry(merged, merged.date);
+    setEditorMode("fields");
+    toast(`${merged.date} 기록을 항목별로 정리했습니다. 확인 후 저장해 주세요.`);
+  };
+
+  $("parseAndSaveBtn").onclick = async () => {
+    const txt = $("rawPasteInput").value.trim();
+    if (!txt) { toast("붙여넣을 내용을 먼저 입력해 주세요."); return; }
+    const parsed = window.JournalParser.parseSubmission(txt);
+    const hadExisting = state.entries.some(x => x.date === parsed.date);
+    const entry = mergeParsedWithExisting(parsed, $("pastePrivate").checked);
+    $("parseAndSaveBtn").disabled = true;
+    try {
+      await upsertEntry(entry);
+      $("editorModal").hidden = true;
+      state.page = "home";
+      state.homeView = "daily";
+      renderAll();
+      toast(hadExisting ? `${entry.date} 기존 기록에 합쳐 저장했습니다.` : `${entry.date} 기록이 정리되어 저장되었습니다.`);
+    } catch (e) {
+      toast("저장 실패: " + e.message);
+    } finally {
+      $("parseAndSaveBtn").disabled = false;
+    }
+  };
 
   $("fDate").addEventListener("change", () => {
     const d = $("fDate").value;
@@ -605,7 +731,9 @@
     const date = $("fDate").value;
     if (!date) return;
     const fName = $("fForumName").value.trim();
-    const fPts = linesToArr($("fForumPoints").value);
+    const forumObj = window.JournalParser
+      ? window.JournalParser.parseForumTextarea(fName, $("fForumPoints").value, editorForumRaw)
+      : ((fName || linesToArr($("fForumPoints").value).length) ? { name: fName, points: linesToArr($("fForumPoints").value) } : null);
     const entry = {
       date,
       covenant: $("fCovenant").value.trim(),
@@ -625,7 +753,7 @@
         answers: linesToArr($("fAnswers").value),
         evangelism: linesToArr($("fWitnessEvg").value),
       },
-      forum: (fName || fPts.length) ? { name: fName, points: fPts } : null,
+      forum: forumObj,
       share_with_admin: !$("fPrivate").checked,
     };
     $("editorSaveBtn").disabled = true;
@@ -870,7 +998,7 @@
           <div class="step${wt.night ? "" : " empty"}"><div class="k">🌙 밤 · 작품</div><p>${wt.night ? esc(wt.night) : "—"}</p></div>
         </div>` : ""}
         ${notes.length ? `<div class="notes" style="margin-top:10px">${notes.map(([c, k, v]) => `<div class="note ${c}"><b>${k}</b><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
-        ${e.forum ? `<div class="forum" style="margin-top:10px"><div class="name">🗣️ ${esc(e.forum.name || "포럼")}</div><ul>${arr(e.forum.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+        ${renderForumBox(e.forum, true)}
       </article>`;
     };
 
@@ -900,7 +1028,7 @@
       out.innerHTML = rows.map(e => `<article class="report-card">
         <div class="report-meta"><div class="report-who">${who(e.user_id)}</div><span style="font-size:13px;color:var(--muted)">${e.date}</span></div>
         ${e.covenant ? `<div style="font-family:var(--serif);font-size:17px;margin-bottom:8px">📖 “${esc(e.covenant)}” ${e.ref ? `<small style="color:var(--word);font-family:var(--sans)">(${esc(e.ref)})</small>` : ""}</div>` : ""}
-        ${e.forum ? `<div class="forum"><div class="name">🗣️ ${esc(e.forum.name || "포럼")}</div><ul>${arr(e.forum.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+        ${renderForumBox(e.forum, false)}
       </article>`).join("");
     } else {
       out.innerHTML = members.map(m => {
@@ -973,6 +1101,7 @@
     collect("▶ 전도 역사", e => arr(e.witness.evangelism));
     collect("▶ 최고의 작품", e => e.witness.night ? [e.witness.night] : []);
     collect("▶ 붙잡은 언약", e => e.covenant ? [`${e.covenant}${e.ref ? ` (${e.ref})` : ""}`] : []);
+    collect("▶ 포럼 나눔", e => e.forum ? arr(e.forum.points) : []);
 
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
