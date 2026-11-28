@@ -210,7 +210,10 @@
       state.sb = window.supabase.createClient(state.cloud.url, state.cloud.key);
       try {
         const { data } = await state.sb.rpc("auth_info");
-        if (data) state.authInfo = data;
+        if (data) {
+          state.authInfo = data;
+          if (!data.has_admin) state.authMode = "signup";
+        }
       } catch {}
       const { data: { session } } = await state.sb.auth.getSession();
       await onSession(session);
