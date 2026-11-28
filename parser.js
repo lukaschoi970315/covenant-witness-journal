@@ -512,7 +512,7 @@
       if (!resp.ok) throw new Error(data?.error?.message || `OpenAI 오류 (${resp.status})`);
       parsedJson = JSON.parse(data.choices[0].message.content);
     } else {
-      const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+      const models = ["gemini-2.5-flash", "gemini-3.8-flash"];
       let lastErr = null;
       for (const model of models) {
         const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
