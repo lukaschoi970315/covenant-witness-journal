@@ -104,15 +104,56 @@
     return null;
   }
 
+  function saveIdbEntries(entries) {
+    try {
+      if (!window.indexedDB) return;
+      const req = indexedDB.open("three_today_backup_db", 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains("kv")) req.result.createObjectStore("kv");
+      };
+      req.onsuccess = () => {
+        try {
+          const tx = req.result.transaction("kv", "readwrite");
+          tx.objectStore("kv").put(entries, "entries");
+        } catch {}
+      };
+    } catch {}
+  }
+
+  function loadIdbEntries() {
+    return new Promise(resolve => {
+      try {
+        if (!window.indexedDB) { resolve([]); return; }
+        const req = indexedDB.open("three_today_backup_db", 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains("kv")) req.result.createObjectStore("kv");
+        };
+        req.onerror = () => resolve([]);
+        req.onsuccess = () => {
+          try {
+            const tx = req.result.transaction("kv", "readonly");
+            const g = tx.objectStore("kv").get("entries");
+            g.onerror = () => resolve([]);
+            g.onsuccess = () => {
+              const list = Array.isArray(g.result) ? g.result : [];
+              resolve(list.map(x => normalizeEntry(x, "local")).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date || "")));
+            };
+          } catch { resolve([]); }
+        };
+      } catch { resolve([]); }
+    });
+  }
+
   function loadLocalEntries() {
     try {
       const list = JSON.parse(localStorage.getItem(LOCAL_ENTRIES_KEY) || "[]");
-      return Array.isArray(list) ? list.map(x => normalizeEntry(x, "local")).filter(x => x.date) : [];
+      return Array.isArray(list) ? list.map(x => normalizeEntry(x, "local")).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date || "")) : [];
     } catch { return []; }
   }
 
   function saveLocalEntries(entries) {
     localStorage.setItem(LOCAL_ENTRIES_KEY, JSON.stringify(entries));
+    saveIdbEntries(entries);
   }
 
   function loadLocalProfile() {
@@ -188,7 +229,18 @@
       state.admin.start40 = state.profile.campaign_start || addDays(todayKey(), -39);
       state.admin.settings.campaign_name = state.profile.campaign_name || "40일 집중";
       state.admin.settings.campaign_start = state.admin.start40;
-      state.entries = loadLocalEntries().sort((a, b) => b.date.localeCompare(a.date));
+      let list = loadLocalEntries();
+      if (!list.length) {
+        const idb = await loadIdbEntries();
+        if (idb.length) {
+          list = idb;
+          localStorage.setItem(LOCAL_ENTRIES_KEY, JSON.stringify(list));
+          toast(`기기 백업 저장소에서 ${list.length}건의 기록을 복구했습니다.`);
+        }
+      } else {
+        saveIdbEntries(list);
+      }
+      state.entries = list.sort((a, b) => String(b.date).localeCompare(String(a.date)));
       renderAll();
     }
   }
@@ -414,7 +466,8 @@
       ["🔥 전도 역사", evgCount],
     ].map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join("");
 
-    // 로컬->클라우드 마이그레이션 배너
+    // 로컬 안전 안내 및 로컬->클라우드 마이그레이션 배너
+    $("localSafetyBanner").hidden = !!state.sb || entries.length === 0;
     const localCount = state.sb ? loadLocalEntries().length : 0;
     $("migrateBanner").hidden = !state.sb || localCount === 0;
     if (localCount > 0 && state.sb) {
@@ -1411,6 +1464,16 @@
   });
   $("newEntryBtn").onclick = () => openEditor(todayKey());
   $("settingsBtn").onclick = () => openSettings();
+  $("quickCloudBtn").onclick = () => openSettings();
+  $("quickBackupBtn").onclick = () => {
+    const blob = new Blob([JSON.stringify(state.entries, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `3오늘-백업-${todayKey()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("백업 파일을 저장했습니다.");
+  };
 
   document.addEventListener("click", ev => {
     const closeId = ev.target.closest("[data-close]")?.dataset.close;

@@ -400,6 +400,14 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:12px 0 56px}
       <div class="stats" id="stats"></div>
     </header>
 
+    <div class="banner" id="localSafetyBanner" hidden>
+      <span>⚠️ 현재 <b>이 브라우저에만 저장</b>됩니다. 기기를 바꾸거나 캐시를 지우면 사라질 수 있으니 백업하거나 클라우드를 연결해 주세요.</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-secondary" id="quickBackupBtn" type="button">📥 백업 저장</button>
+        <button class="btn-primary" id="quickCloudBtn" type="button">☁️ 클라우드 연결</button>
+      </div>
+    </div>
+
     <div class="banner" id="migrateBanner" hidden>
       <span id="migrateText">이 기기에 먼저 적어두신 기록이 있습니다.</span>
       <button class="btn-primary" id="migrateBtn" type="button">내 클라우드 노트로 옮기기</button>
