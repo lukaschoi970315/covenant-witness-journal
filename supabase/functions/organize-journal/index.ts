@@ -80,9 +80,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "로그인이 필요합니다." }), { status: 401, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured" }), { status: 501, headers: { ...CORS, "Content-Type": "application/json" } });
+    if (!openaiKey && !geminiKey) {
+      return new Response(JSON.stringify({ error: "OPENAI_API_KEY or GEMINI_API_KEY not configured" }), { status: 501, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
     const { text, today } = await req.json();
@@ -91,36 +92,64 @@ Deno.serve(async (req) => {
     }
 
     const userMsg = `오늘 기준 날짜는 ${today || new Date().toISOString().slice(0, 10)} 입니다.\n\n[원문]\n${text.slice(0, 16000)}`;
-    const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
     let rawOut = "";
     let lastErrMsg = "AI call failed";
 
-    for (const model of models) {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`, {
+    if (openaiKey) {
+      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: PROMPT }] },
-          contents: [{ role: "user", parts: [{ text: userMsg }] }],
-          generationConfig: { responseMimeType: "application/json" },
+          model: "gpt-4o-mini",
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: PROMPT },
+            { role: "user", content: userMsg },
+          ],
         }),
       });
-
       const data = await resp.json();
-      const parts = Array.isArray(data?.candidates?.[0]?.content?.parts) ? data.candidates[0].content.parts : [];
-      const textPart = parts
-        .filter((p: Record<string, unknown>) => p && !p.thought && typeof p.text === "string")
-        .map((p: Record<string, unknown>) => String(p.text))
-        .join("\n")
-        || String(parts.find((p: Record<string, unknown>) => typeof p?.text === "string")?.text ?? "");
-
-      if (resp.ok && textPart) {
-        rawOut = textPart;
-        break;
+      const content = data?.choices?.[0]?.message?.content;
+      if (resp.ok && typeof content === "string" && content.trim()) {
+        rawOut = content;
+      } else {
+        lastErrMsg = data?.error?.message || `OpenAI error (${resp.status})`;
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: lastErrMsg }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+        }
       }
-      lastErrMsg = data?.error?.message || `Gemini error (${resp.status})`;
-      if (resp.status !== 404 && !/no longer available|not found|deprecated/i.test(lastErrMsg)) {
-        return new Response(JSON.stringify({ error: lastErrMsg }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+    }
+
+    if (!rawOut && geminiKey) {
+      const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+      for (const model of models) {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: PROMPT }] },
+            contents: [{ role: "user", parts: [{ text: userMsg }] }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
+        });
+
+        const data = await resp.json();
+        const parts = Array.isArray(data?.candidates?.[0]?.content?.parts) ? data.candidates[0].content.parts : [];
+        const textPart = parts
+          .filter((p: Record<string, unknown>) => p && !p.thought && typeof p.text === "string")
+          .map((p: Record<string, unknown>) => String(p.text))
+          .join("\n")
+          || String(parts.find((p: Record<string, unknown>) => typeof p?.text === "string")?.text ?? "");
+
+        if (resp.ok && textPart) {
+          rawOut = textPart;
+          break;
+        }
+        lastErrMsg = data?.error?.message || `Gemini error (${resp.status})`;
+        if (resp.status !== 404 && !/no longer available|not found|deprecated/i.test(lastErrMsg)) {
+          return new Response(JSON.stringify({ error: lastErrMsg }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+        }
       }
     }
 

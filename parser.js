@@ -487,9 +487,9 @@
   async function parseWithAI(rawText, aiConfig) {
     const text = String(rawText || "").trim();
     if (!text) return null;
-    const provider = aiConfig?.provider || "gemini";
     const apiKey = String(aiConfig?.apiKey || "").trim();
     if (!apiKey) throw new Error("API 키가 설정되지 않았습니다.");
+    const provider = apiKey.startsWith("sk-") ? "openai" : (apiKey.startsWith("AIza") ? "gemini" : (aiConfig?.provider || "gemini"));
 
     const userMsg = `오늘 기준 날짜는 ${todayLocal()} 입니다. 날짜가 글에 적혀 있으면 글의 날짜를 사용하세요.\n\n[원문]\n${text}`;
     let parsedJson = null;

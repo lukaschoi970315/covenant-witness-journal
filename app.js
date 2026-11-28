@@ -5,10 +5,21 @@
   const LOCAL_CLOUD_KEY = "three_today_cloud_cfg_v1";
   const LOCAL_AI_KEY = "three_today_ai_cfg_v1";
 
+  function detectAiProvider(apiKey, fallback = "gemini") {
+    const k = String(apiKey || "").trim();
+    if (k.startsWith("sk-")) return "openai";
+    if (k.startsWith("AIza")) return "gemini";
+    return fallback;
+  }
+
   function loadAiConfig() {
     try {
       const c = JSON.parse(localStorage.getItem(LOCAL_AI_KEY) || "null");
-      return (c && c.apiKey) ? c : null;
+      if (c && c.apiKey) {
+        const apiKey = String(c.apiKey).trim();
+        return { provider: detectAiProvider(apiKey, c.provider || "gemini"), apiKey };
+      }
+      return null;
     } catch { return null; }
   }
 
@@ -205,7 +216,35 @@
   };
 
   // ── Data Operations ──
+  let pendingCloudAiSync = false;
+
+  function consumeAiSetupFromUrl() {
+    try {
+      const rawHash = window.location.hash ? window.location.hash.slice(1) : "";
+      const rawSearch = window.location.search ? window.location.search.slice(1) : "";
+      const hashParams = new URLSearchParams(rawHash);
+      const searchParams = new URLSearchParams(rawSearch);
+      const apiKey = (hashParams.get("ai_key") || searchParams.get("ai_key") || "").trim();
+      if (!apiKey) return;
+      const provider = detectAiProvider(apiKey, hashParams.get("ai_provider") || searchParams.get("ai_provider") || "openai");
+      localStorage.setItem(LOCAL_AI_KEY, JSON.stringify({ provider, apiKey }));
+      pendingCloudAiSync = true;
+      hashParams.delete("ai_key");
+      hashParams.delete("ai_provider");
+      searchParams.delete("ai_key");
+      searchParams.delete("ai_provider");
+      const nextSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      const nextHash = hashParams.toString() ? `#${hashParams.toString()}` : "";
+      window.history.replaceState(null, "", window.location.pathname + nextSearch + nextHash);
+      setTimeout(() => {
+        updateAiPill();
+        toast(`✨ ${provider === "openai" ? "OpenAI (GPT-4o mini)" : "Google Gemini"} API 키가 저장·연결되었습니다!`);
+      }, 250);
+    } catch {}
+  }
+
   async function init() {
+    consumeAiSetupFromUrl();
     state.cloud = getCloudConfig();
     if (state.cloud && window.supabase) {
       state.sb = window.supabase.createClient(state.cloud.url, state.cloud.key);
@@ -258,6 +297,18 @@
       renderAll();
       return;
     }
+    try {
+      const metaAi = state.user.user_metadata?.ai_config;
+      const localAi = loadAiConfig();
+      if (localAi?.apiKey && (pendingCloudAiSync || !metaAi?.apiKey)) {
+        pendingCloudAiSync = false;
+        state.sb.auth.updateUser({ data: { ai_config: localAi } }).catch(() => {});
+      } else if (metaAi?.apiKey && !localAi?.apiKey) {
+        const synced = { provider: detectAiProvider(metaAi.apiKey, metaAi.provider), apiKey: String(metaAi.apiKey).trim() };
+        localStorage.setItem(LOCAL_AI_KEY, JSON.stringify(synced));
+        updateAiPill();
+      }
+    } catch {}
     const { data: prof } = await state.sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
     state.profile = prof || { id: state.user.id, email: state.user.email, display_name: state.user.email.split("@")[0], group_name: "", role: "member" };
     await refreshMyEntries();
@@ -1445,15 +1496,25 @@
       toast("프로필이 저장되었습니다.");
     };
 
+    $("aiKeyIn").oninput = () => {
+      const k = $("aiKeyIn").value.trim();
+      if (k.startsWith("sk-")) $("aiProviderSel").value = "openai";
+      else if (k.startsWith("AIza")) $("aiProviderSel").value = "gemini";
+    };
+
     $("saveAiBtn").onclick = async () => {
-      const provider = $("aiProviderSel").value;
       const apiKey = $("aiKeyIn").value.trim();
       if (!apiKey) { toast("API 키를 입력해 주세요."); return; }
+      const provider = detectAiProvider(apiKey, $("aiProviderSel").value);
+      $("aiProviderSel").value = provider;
       const btn = $("saveAiBtn"), old = btn.textContent;
       btn.disabled = true; btn.textContent = "연결 확인 중…";
       try {
         await window.JournalParser.parseWithAI("2026-11-28\n오늘의 말씀\n언약 붙잡음", { provider, apiKey });
         localStorage.setItem(LOCAL_AI_KEY, JSON.stringify({ provider, apiKey }));
+        if (state.sb && state.user) {
+          state.sb.auth.updateUser({ data: { ai_config: { provider, apiKey } } }).catch(() => {});
+        }
         updateAiPill();
         openSettings();
         toast("✨ AI 문맥 다듬기가 정상 연결되었습니다!");
@@ -1467,6 +1528,9 @@
     if (clearAiBtn) {
       clearAiBtn.onclick = () => {
         localStorage.removeItem(LOCAL_AI_KEY);
+        if (state.sb && state.user) {
+          state.sb.auth.updateUser({ data: { ai_config: null } }).catch(() => {});
+        }
         updateAiPill();
         openSettings();
         toast("기본 정리 모드로 전환했습니다.");
