@@ -512,7 +512,7 @@
       if (!resp.ok) throw new Error(data?.error?.message || `OpenAI 오류 (${resp.status})`);
       parsedJson = JSON.parse(data.choices[0].message.content);
     } else {
-      const models = ["gemini-2.5-flash", "gemini-3.8-flash"];
+      const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
       let lastErr = null;
       for (const model of models) {
         const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
@@ -521,16 +521,21 @@
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
             contents: [{ role: "user", parts: [{ text: userMsg }] }],
-            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+            generationConfig: { responseMimeType: "application/json" },
           }),
         });
         const data = await resp.json();
-        if (resp.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-          parsedJson = JSON.parse(data.candidates[0].content.parts[0].text);
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.filter(p => p && !p.thought && typeof p.text === "string").map(p => p.text).join("\n")
+          || parts.find(p => typeof p?.text === "string")?.text
+          || "";
+        if (resp.ok && textPart) {
+          const cleaned = textPart.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+          parsedJson = JSON.parse(cleaned);
           break;
         }
         lastErr = new Error(data?.error?.message || `Gemini 오류 (${resp.status})`);
-        if (resp.status !== 404) throw lastErr;
+        if (resp.status !== 404 && !/no longer available|not found|deprecated/i.test(lastErr.message)) throw lastErr;
       }
       if (!parsedJson) throw lastErr || new Error("AI 응답을 받지 못했습니다.");
     }

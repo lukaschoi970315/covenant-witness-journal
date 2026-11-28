@@ -91,20 +91,41 @@ Deno.serve(async (req) => {
     }
 
     const userMsg = `오늘 기준 날짜는 ${today || new Date().toISOString().slice(0, 10)} 입니다.\n\n[원문]\n${text.slice(0, 16000)}`;
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: PROMPT }] },
-        contents: [{ role: "user", parts: [{ text: userMsg }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-      }),
-    });
+    const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+    let rawOut = "";
+    let lastErrMsg = "AI call failed";
 
-    const data = await resp.json();
-    const rawOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resp.ok || !rawOut) {
-      return new Response(JSON.stringify({ error: data?.error?.message || "AI call failed" }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+    for (const model of models) {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userMsg }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+      });
+
+      const data = await resp.json();
+      const parts = Array.isArray(data?.candidates?.[0]?.content?.parts) ? data.candidates[0].content.parts : [];
+      const textPart = parts
+        .filter((p: Record<string, unknown>) => p && !p.thought && typeof p.text === "string")
+        .map((p: Record<string, unknown>) => String(p.text))
+        .join("\n")
+        || String(parts.find((p: Record<string, unknown>) => typeof p?.text === "string")?.text ?? "");
+
+      if (resp.ok && textPart) {
+        rawOut = textPart;
+        break;
+      }
+      lastErrMsg = data?.error?.message || `Gemini error (${resp.status})`;
+      if (resp.status !== 404 && !/no longer available|not found|deprecated/i.test(lastErrMsg)) {
+        return new Response(JSON.stringify({ error: lastErrMsg }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
+      }
+    }
+
+    if (!rawOut) {
+      return new Response(JSON.stringify({ error: lastErrMsg }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
     const cleaned = String(rawOut).replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
