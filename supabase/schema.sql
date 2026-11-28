@@ -170,6 +170,7 @@ alter table public.profiles enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.journal_entries enable row level security;
 revoke all on public.profiles, public.app_settings, public.journal_entries from anon;
+grant select, insert, update, delete on public.profiles, public.app_settings, public.journal_entries to authenticated;
 
 -- profiles: 본인 정보 또는 관리자만 조회/수정
 drop policy if exists "profiles_select" on public.profiles;
