@@ -58,6 +58,7 @@
         pulpit: arr(w.pulpit),
         field: arr(w.field),
         points: arr(w.points),
+        ...(w.raw ? { raw: String(w.raw).trim() } : {}),
       },
       prayer: arr(raw.prayer),
       evangelism: arr(raw.evangelism),
@@ -518,6 +519,10 @@
           ${notes.length ? `<div class="notes" style="margin-top:${hasFlow ? 10 : 0}px">${notes.map(([c, k, v]) => `<div class="note ${c}"><b>${k}</b><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
         </div>` : "";
       const forumHtml = f ? `<div class="block"><h4>포럼</h4>${renderForumBox(f, false)}</div>` : "";
+      const wordRawHtml = w.raw && (!f?.raw || w.raw !== f.raw)
+        ? `<details class="raw-toggle"><summary>원문 보기</summary><pre>${esc(w.raw)}</pre></details>`
+        : "";
+      const hasRaw = Boolean(w.raw || f?.raw);
       const privTag = e.share_with_admin === false ? `<span class="priv-tag">🔒 나만 보기</span>` : "";
 
       return `
@@ -527,9 +532,10 @@
             <div class="cov"><q>${esc(e.covenant || w.title || "오늘의 언약")}</q><div class="cov-meta">${e.ref || w.ref ? `<span class="ref">${esc(e.ref || w.ref)}</span>` : ""}${privTag}</div></div>
             <span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
-          <div class="body"><div><div class="inner">${todayHtml}${witnessHtml}${forumHtml}
+          <div class="body"><div><div class="inner">${todayHtml}${witnessHtml}${forumHtml}${wordRawHtml}
             <div class="card-foot">
               <button class="mini-btn" type="button" data-edit="${e.date}">✏️ 수정 · 이어쓰기</button>
+              ${hasRaw ? `<button class="mini-btn" type="button" data-reorg="${e.date}">✨ 원문 다시 정리</button>` : ""}
               <button class="mini-btn del" type="button" data-del="${e.date}">삭제</button>
             </div>
           </div></div></div>
@@ -602,6 +608,33 @@
   $("list").addEventListener("click", async ev => {
     const editBtn = ev.target.closest("[data-edit]");
     if (editBtn) { openEditor(editBtn.dataset.edit, "fields"); return; }
+    const reorgBtn = ev.target.closest("[data-reorg]");
+    if (reorgBtn) {
+      const d = reorgBtn.dataset.reorg;
+      const e = state.entries.find(x => x.date === d);
+      const sources = [e?.word?.raw, e?.forum?.raw].filter((v, i, a) => v && a.indexOf(v) === i);
+      if (!sources.length) { toast("다시 정리할 원문이 없습니다."); return; }
+      const origText = reorgBtn.textContent;
+      reorgBtn.disabled = true;
+      reorgBtn.textContent = "정리 중…";
+      try {
+        let usedAi = false;
+        for (let i = 0; i < sources.length; i++) {
+          const res = await runSmartParse(sources[i]);
+          usedAi = usedAi || res.usedAi;
+          res.parsed.date = d;
+          const entry = mergeParsedWithExisting(res.parsed, e.share_with_admin === false, i === 0);
+          await upsertEntry(entry);
+        }
+        renderAll();
+        toast(usedAi ? "✨ AI로 문맥을 다시 정리해 저장했습니다." : "기본 문맥 기준으로 다시 정리해 저장했습니다.");
+      } catch (err) {
+        reorgBtn.disabled = false;
+        reorgBtn.textContent = origText;
+        toast("다시 정리 실패: " + err.message);
+      }
+      return;
+    }
     const delBtn = ev.target.closest("[data-del]");
     if (delBtn) {
       const d = delBtn.dataset.del;
@@ -671,6 +704,7 @@
 
   // ── Editor Modal ──
   let editorForumRaw = "";
+  let editorWordRaw = "";
 
   function updateAiPill() {
     const aiCfg = loadAiConfig();
@@ -712,6 +746,7 @@
       ? window.JournalParser.formatForumTextarea(data?.forum)
       : arrToLines(data?.forum?.points);
     editorForumRaw = data?.forum?.raw || "";
+    editorWordRaw = data?.word?.raw || "";
     $("fPrivate").checked = data ? data.share_with_admin === false : false;
   }
 
@@ -721,14 +756,16 @@
 
   const uniq = xs => [...new Set(arr(xs))];
 
-  function mergeParsedWithExisting(parsed, isPrivate) {
-    const existing = state.entries.find(x => x.date === parsed.date);
+  function mergeParsedWithExisting(parsed, isPrivate, replaceExisting = false) {
+    const existing = replaceExisting ? null : state.entries.find(x => x.date === parsed.date);
+    const wordRaw = parsed.word?.raw || existing?.word?.raw || "";
     const mergedWord = {
       ref: parsed.word?.ref || existing?.word?.ref || "",
       title: parsed.word?.title || existing?.word?.title || "",
       pulpit: uniq([...(existing?.word?.pulpit || []), ...(parsed.word?.pulpit || [])]),
       field: uniq([...(existing?.word?.field || []), ...(parsed.word?.field || [])]),
       points: (parsed.word?.points?.length ? parsed.word.points : existing?.word?.points) || [],
+      ...(wordRaw ? { raw: wordRaw } : {}),
     };
     const mergedWitness = {
       morning: parsed.witness?.morning || existing?.witness?.morning || "",
@@ -773,6 +810,16 @@
       } catch (e) {
         toast(`AI 연결 오류로 기본 정리로 진행합니다 (${e.message})`);
       }
+    }
+    if (state.sb && state.user && window.JournalParser?.normalizeAiResult) {
+      try {
+        const { data, error } = await state.sb.functions.invoke("organize-journal", {
+          body: { text: txt, today: window.JournalParser.todayLocal() },
+        });
+        if (!error && data && !data.error && (data.date || data.word || data.forum)) {
+          return { parsed: window.JournalParser.normalizeAiResult(data, txt), usedAi: true };
+        }
+      } catch {}
     }
     return { parsed: window.JournalParser.parseSubmission(txt), usedAi: false };
   }
@@ -873,6 +920,7 @@
         pulpit: linesToArr($("fWordPulpit").value),
         field: linesToArr($("fWordField").value),
         points: linesToArr($("fWordPoints").value),
+        ...(editorWordRaw ? { raw: editorWordRaw } : {}),
       },
       prayer: linesToArr($("fPrayer").value),
       evangelism: linesToArr($("fEvg").value),
@@ -1329,8 +1377,11 @@
 
       <div class="sec-box w">
         <h4>✨ AI 문맥 다듬기 연결 (선택)</h4>
-        <p style="font-size:13px;color:var(--ink-2);margin-bottom:10px">
-          두서없는 구어체 녹취나 메모를 문맥에 맞게 유려하게 다듬고, <b>강단·현장 말씀</b>과 <b>성취·응답·전도 역사</b>를 정확히 뽑아 줍니다. (키는 이 브라우저에만 보관됩니다)
+        <p style="font-size:13px;color:var(--ink-2);margin-bottom:8px">
+          두서없는 구어체 녹취나 메모를 문맥 전체에 맞게 유려하게 다듬고, <b>강단·현장 말씀</b>과 <b>성취·응답·전도 역사</b>를 바르게 정리해 줍니다. (키는 이 브라우저에만 보관됩니다)
+        </p>
+        <p style="font-size:12.5px;margin-bottom:10px">
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--word);font-weight:700;text-decoration:underline">🔑 무료 Gemini API 키 30초 발급받기 (Google AI Studio) ↗</a>
         </p>
         <div class="grid-2">
           <div class="field"><label for="aiProviderSel">AI 종류</label>
@@ -1339,12 +1390,12 @@
               <option value="openai"${aiCfg?.provider === "openai" ? " selected" : ""}>OpenAI (GPT-4o mini)</option>
             </select>
           </div>
-          <div class="field"><label for="aiKeyIn">API 키</label><input id="aiKeyIn" type="password" value="${esc(aiCfg?.apiKey || "")}" placeholder="키를 입력하면 AI 정리 사용"></div>
+          <div class="field"><label for="aiKeyIn">API 키</label><input id="aiKeyIn" type="password" value="${esc(aiCfg?.apiKey || "")}" placeholder="키를 붙여넣으세요"></div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn-primary" id="saveAiBtn" type="button">저장 · 연결</button>
+          <button class="btn-primary" id="saveAiBtn" type="button">확인 · 연결하기</button>
           ${aiCfg?.apiKey ? `<button class="btn-secondary" id="clearAiBtn" type="button">연결 해제</button>` : ""}
-          <span style="font-size:12px;color:var(--muted)">미설정 시 내장 자동 정리기로 동작합니다</span>
+          <span style="font-size:12px;color:var(--muted)">미설정 시 단순 항목 분류로 동작합니다</span>
         </div>
       </div>
 
@@ -1394,14 +1445,23 @@
       toast("프로필이 저장되었습니다.");
     };
 
-    $("saveAiBtn").onclick = () => {
+    $("saveAiBtn").onclick = async () => {
       const provider = $("aiProviderSel").value;
       const apiKey = $("aiKeyIn").value.trim();
       if (!apiKey) { toast("API 키를 입력해 주세요."); return; }
-      localStorage.setItem(LOCAL_AI_KEY, JSON.stringify({ provider, apiKey }));
-      updateAiPill();
-      openSettings();
-      toast("AI 문맥 다듬기가 연결되었습니다.");
+      const btn = $("saveAiBtn"), old = btn.textContent;
+      btn.disabled = true; btn.textContent = "연결 확인 중…";
+      try {
+        await window.JournalParser.parseWithAI("2026-11-28\n오늘의 말씀\n언약 붙잡음", { provider, apiKey });
+        localStorage.setItem(LOCAL_AI_KEY, JSON.stringify({ provider, apiKey }));
+        updateAiPill();
+        openSettings();
+        toast("✨ AI 문맥 다듬기가 정상 연결되었습니다!");
+      } catch (e) {
+        toast("API 키 확인 실패: " + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = old;
+      }
     };
     const clearAiBtn = $("clearAiBtn");
     if (clearAiBtn) {
@@ -1409,7 +1469,7 @@
         localStorage.removeItem(LOCAL_AI_KEY);
         updateAiPill();
         openSettings();
-        toast("기본 자동 정리 모드로 전환했습니다.");
+        toast("기본 정리 모드로 전환했습니다.");
       };
     }
 
